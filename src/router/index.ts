@@ -113,36 +113,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import(/* webpackChunkName: "login" */ '../views/login.vue'),
     },
     {
-        path: '/execution-redesign',
-        name: 'ExecutionRedesign',
-        meta: { title: '执行队列（新版）' },
-        component: () => import('../views/execution-redesign.vue'),
-    },
-    {
-        path: '/home-redesign',
-        name: 'HomeRedesign',
-        meta: { title: '主布局（新版）' },
-        component: () => import('../views/home-redesign.vue'),
-    },
-    {
-        path: '/login-redesign',
-        name: 'LoginRedesign',
-        meta: { title: '登录（新版）' },
-        component: () => import('../views/login-redesign.vue'),
-    },
-    {
-        path: '/design-preview',
-        name: 'DesignPreview',
-        meta: { title: '设计稿预览' },
-        component: () => import('../views/design-preview.vue'),
-    },
-    {
-        path: '/design-preview-v2',
-        name: 'DesignPreviewV2',
-        meta: { title: '设计稿预览 v2' },
-        component: () => import('../views/design-preview-v2.vue'),
-    },
-    {
         path: '/403',
         name: '403',
         meta: {
@@ -161,7 +131,7 @@ router.beforeEach((to, from, next) => {
     document.title = `${to.meta.title} | mysterious`;
     const role = localStorage.getItem('ms_username');
     const permiss = usePermissStore();
-    if (!role && to.path !== '/login' && to.path !== '/design-preview' && to.path !== '/design-preview-v2' && to.path !== '/login-redesign' && to.path !== '/home-redesign' && to.path !== '/execution-redesign') {
+    if (!role && to.path !== '/login') {
         next('/login');
     } else if (to.meta.permiss && !permiss.key.includes(to.meta.permiss)) {
         // 如果没有权限，则进入403

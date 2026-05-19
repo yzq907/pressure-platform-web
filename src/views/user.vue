@@ -17,10 +17,11 @@
         <el-table-column prop="realName" label="姓名" align="center"></el-table-column>
         <el-table-column prop="effectTime" label="登录时间" align="center"></el-table-column>
         <el-table-column prop="expireTime" label="失效时间" align="center"></el-table-column>
-        <el-table-column label="操作" align="right" width="120">
+        <el-table-column label="操作" align="right" width="200">
           <template #default="scope">
             <div class="action-group">
               <el-button text type="primary" @click="handleUpdatePassword(scope.row)">修改密码</el-button>
+              <el-button text type="danger" :disabled="scope.row.username === 'admin'" @click="handleDelete(scope.row.id)">删除</el-button>
             </div>
           </template>
         </el-table-column>
