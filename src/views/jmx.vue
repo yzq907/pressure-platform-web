@@ -48,7 +48,7 @@
           :size="'60%'"
       >
         <div class="log-content">
-          <pre>{{ jmxFile }}</pre>
+          <VirtualTextViewer :content="jmxFile" />
         </div>
       </el-drawer>
 
@@ -70,6 +70,7 @@
 <script setup lang="ts" name="baseJmx">
 import {ref, reactive, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
+import VirtualTextViewer from '../components/VirtualTextViewer.vue';
 import { Plus, Search, Delete, Edit, Refresh, Top } from '@element-plus/icons-vue';
 import {deleteJmx, viewJmx, getJmxList, downloadJmx} from "../api/jmx";
 import {viewCsv} from "../api/csv";

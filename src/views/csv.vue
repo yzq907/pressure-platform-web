@@ -49,7 +49,7 @@
           :size="'60%'"
       >
         <div class="log-content">
-          <pre>{{ csvFile }}</pre>
+          <VirtualTextViewer :content="csvFile" />
         </div>
       </el-drawer>
 
@@ -71,6 +71,7 @@
 <script setup lang="ts" name="baseCsv">
 import {ref, reactive, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
+import VirtualTextViewer from '../components/VirtualTextViewer.vue';
 import { Plus, Search, Delete, Edit, Refresh, Top } from '@element-plus/icons-vue';
 import {deleteCsv, viewCsv, getCsvList, downloadCsv} from "../api/csv";
 import {CsvItem} from "../common/item";
