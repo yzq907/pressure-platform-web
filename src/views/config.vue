@@ -128,6 +128,17 @@
             />
             <span style="margin-left: 12px; color: #909399; font-size: 13px;">0 表示永久保存</span>
           </el-form-item>
+          <el-form-item label="审计日志保留天数">
+            <el-input-number
+              v-model="auditRetentionDays"
+              :min="7"
+              :max="365"
+              :step="1"
+              step-strictly
+              style="width: 160px;"
+            />
+            <span style="margin-left: 12px; color: #909399; font-size: 13px;">范围 7~365 天</span>
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="saveRetentionConfig">保存</el-button>
           </el-form-item>
@@ -251,14 +262,19 @@ const loading = ref(false);
 const configData = ref<ConfigItem[]>([]);
 const total = ref(0);
 
-// 报告保留天数配置
+// 系统配置
 const reportRetentionDays = ref(0);
+const auditRetentionDays = ref(30);
 const retentionConfigId = ref<number | null>(null);
+const auditRetentionConfigId = ref<number | null>(null);
 
 const loadRetentionConfig = async () => {
-  const res = await getConfigList({ configKey: 'REPORT_RETENTION_DAYS', page: 1, size: 1 });
-  if (res.data.code === 0 && res.data.data.list.length > 0) {
-    const item = res.data.data.list[0];
+  const [reportRes, auditRes] = await Promise.all([
+    getConfigList({ configKey: 'REPORT_RETENTION_DAYS', page: 1, size: 1 }),
+    getConfigList({ configKey: 'AUDIT_RETENTION_DAYS', page: 1, size: 1 }),
+  ]);
+  if (reportRes.data.code === 0 && reportRes.data.data.list.length > 0) {
+    const item = reportRes.data.data.list[0];
     retentionConfigId.value = item.id;
     const val = parseInt(item.configValue, 10);
     reportRetentionDays.value = isNaN(val) ? 0 : Math.max(0, Math.min(3650, val));
@@ -266,33 +282,55 @@ const loadRetentionConfig = async () => {
     retentionConfigId.value = null;
     reportRetentionDays.value = 0;
   }
+  if (auditRes.data.code === 0 && auditRes.data.data.list.length > 0) {
+    const item = auditRes.data.data.list[0];
+    auditRetentionConfigId.value = item.id;
+    const val = parseInt(item.configValue, 10);
+    auditRetentionDays.value = isNaN(val) ? 30 : Math.max(7, Math.min(365, val));
+  } else {
+    auditRetentionConfigId.value = null;
+    auditRetentionDays.value = 30;
+  }
 };
 
 const saveRetentionConfig = async () => {
-  const val = Math.max(0, Math.min(3650, reportRetentionDays.value));
-  reportRetentionDays.value = val;
+  const reportVal = Math.max(0, Math.min(3650, reportRetentionDays.value));
+  reportRetentionDays.value = reportVal;
+  const auditVal = Math.max(7, Math.min(365, auditRetentionDays.value));
+  auditRetentionDays.value = auditVal;
+
+  // 保存报告保留天数
   if (retentionConfigId.value) {
-    const res = await updateConfig(retentionConfigId.value, {
+    await updateConfig(retentionConfigId.value, {
       configKey: 'REPORT_RETENTION_DAYS',
-      configValue: String(val),
+      configValue: String(reportVal),
       description: '测试报告保留天数，0表示永久保存'
     });
-    if (res.data.code !== 0) {
-      ElMessage.error(res.data.message);
-      return;
-    }
   } else {
     const res = await addConfig({
       configKey: 'REPORT_RETENTION_DAYS',
-      configValue: String(val),
+      configValue: String(reportVal),
       description: '测试报告保留天数，0表示永久保存'
     });
-    if (res.data.code !== 0) {
-      ElMessage.error(res.data.message);
-      return;
-    }
-    retentionConfigId.value = res.data.data;
+    if (res.data.code === 0) retentionConfigId.value = res.data.data;
   }
+
+  // 保存审计日志保留天数
+  if (auditRetentionConfigId.value) {
+    await updateConfig(auditRetentionConfigId.value, {
+      configKey: 'AUDIT_RETENTION_DAYS',
+      configValue: String(auditVal),
+      description: '审计日志保留天数，范围7~365'
+    });
+  } else {
+    const res = await addConfig({
+      configKey: 'AUDIT_RETENTION_DAYS',
+      configValue: String(auditVal),
+      description: '审计日志保留天数，范围7~365'
+    });
+    if (res.data.code === 0) auditRetentionConfigId.value = res.data.data;
+  }
+
   ElMessage.success('保存成功');
 };
 const getList = () => {

@@ -194,6 +194,9 @@
         <el-form-item label="运行时间">
           <el-input v-model="insertForm.duration" placeholder="持续时间 秒数，如 300"></el-input>
         </el-form-item>
+        <el-form-item label="超时时间">
+          <el-input-number v-model="insertForm.timeoutSeconds" :min="600" :max="86400" :step="60" style="width:100%"></el-input-number>
+        </el-form-item>
       </el-form>
       <template #footer>
 				<span class="dialog-footer">
@@ -240,6 +243,9 @@
         <el-form-item label="运行时间">
           <el-input v-model="editForm.duration" placeholder="持续时间 秒数，如 300"></el-input>
         </el-form-item>
+        <el-form-item label="超时时间">
+          <el-input-number v-model="editForm.timeoutSeconds" :min="600" :max="86400" :step="60" style="width:100%"></el-input-number>
+        </el-form-item>
       </el-form>
       <template #footer>
 				<span class="dialog-footer">
@@ -268,8 +274,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="压力机数">
-          <el-input-number v-model="runForm.slaveCount" :min="1" :max="maxSlaveCount" :step="1" :disabled="maxSlaveCount <= 1"></el-input-number>
-          <span style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
+          <el-input-number v-model="runForm.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1"></el-input-number>
+          <span v-if="maxSlaveCount > 0" style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
+          <span v-else style="margin-left:8px;color:#f56c6c;font-size:12px">该区域暂无可用压力机</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -364,8 +371,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="压力机数">
-          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount" :step="1" :disabled="maxSlaveCount <= 1"></el-input-number>
-          <span style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
+          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1"></el-input-number>
+          <span v-if="maxSlaveCount > 0" style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
+          <span v-else style="margin-left:8px;color:#f56c6c;font-size:12px">该区域暂无可用压力机</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -1475,7 +1483,8 @@ let insertForm = reactive({
   version: null,
   numThreads: '10',
   rampTime: '0',
-  duration: '60'
+  duration: '60',
+  timeoutSeconds: 7200
 });
 
 const handleInsert = (row: any) => {
@@ -1487,6 +1496,7 @@ const handleInsert = (row: any) => {
   insertForm.numThreads = '10';
   insertForm.rampTime = '0';
   insertForm.duration = '60';
+  insertForm.timeoutSeconds = 7200;
   insertVisible.value = true;
 };
 
@@ -1560,12 +1570,15 @@ const openScheduleDialog = async (row: any) => {
       getEnableSlaveCount()
     ]);
     if (regionRes.data.code === 0) regionList.value = regionRes.data.data;
-    if (countRes.data.code === 0) maxSlaveCount.value = Math.max(1, countRes.data.data);
+    if (countRes.data.code === 0) maxSlaveCount.value = countRes.data.data || 0;
   } catch { /* ignore */ }
   scheduleVisible.value = true;
 };
 
 const confirmSchedule = async () => {
+  if (maxSlaveCount.value < 1 && scheduleForm.runParam.region) {
+    ElMessage.error('所选区域暂无可用压力机，无法创建定时任务'); return;
+  }
   let scheduleData: any = {};
   if (scheduleForm.scheduleType === 'once') {
     if (!scheduleForm.onceDateTime) { ElMessage.error('请选择执行时间'); return; }
@@ -1614,7 +1627,8 @@ let editForm = reactive({
   version: null,
   numThreads: null,
   rampTime: null,
-  duration: null
+  duration: null,
+  timeoutSeconds: 7200
 });
 
 const handleEdit = (row: any) => {
@@ -1627,6 +1641,7 @@ const handleEdit = (row: any) => {
   editForm.numThreads = row.numThreads || '10';
   editForm.rampTime = row.rampTime || '0';
   editForm.duration = row.duration || '60';
+  editForm.timeoutSeconds = row.timeoutSeconds || 7200;
   editVisible.value = true;
 };
 
@@ -1671,7 +1686,7 @@ const fetchSlaveCount = async () => {
   try {
     const res = await getEnableSlaveCount(runForm.region || undefined);
     if (res.data.code === 0) {
-      maxSlaveCount.value = Math.max(1, res.data.data);
+      maxSlaveCount.value = res.data.data || 0;
     }
   } catch { /* ignore */ }
 };
@@ -1686,7 +1701,7 @@ const onScheduleRegionChange = async () => {
   try {
     const res = await getEnableSlaveCount(scheduleForm.runParam.region || undefined);
     if (res.data.code === 0) {
-      maxSlaveCount.value = Math.max(1, res.data.data);
+      maxSlaveCount.value = res.data.data || 0;
     }
   } catch { /* ignore */ }
 };
@@ -1705,12 +1720,15 @@ const openRunDialog = async (row: any) => {
       getEnableSlaveCount()
     ]);
     if (regionRes.data.code === 0) regionList.value = regionRes.data.data;
-    if (countRes.data.code === 0) maxSlaveCount.value = Math.max(1, countRes.data.data);
+    if (countRes.data.code === 0) maxSlaveCount.value = countRes.data.data || 0;
   } catch { /* ignore */ }
   runVisible.value = true;
 };
 
 const confirmRun = async () => {
+  if (maxSlaveCount.value < 1 && runForm.region) {
+    ElMessage.error('所选区域暂无可用压力机，无法执行'); return;
+  }
   const res = await startTestCase(runForm.id, {
     numThreads: runForm.numThreads,
     rampTime: runForm.rampTime,

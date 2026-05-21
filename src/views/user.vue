@@ -47,7 +47,8 @@
           <el-input v-model="insertForm.username"></el-input>
         </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input v-model="insertForm.password"></el-input>
+          <el-input v-model="insertForm.password" type="password" show-password placeholder="请输入密码"></el-input>
+          <div class="pwd-hint">长度8~64位，须同时包含大写字母、小写字母和数字</div>
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="insertForm.realName"></el-input>
@@ -63,12 +64,13 @@
 
     <!-- 修改密码弹出框 -->
     <el-dialog :title="pwdDialogTitle" v-model="pwdVisible" width="30%">
-      <el-form label-width="90px">
-        <el-form-item label="旧密码" v-if="pwdIsSelf">
+      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="90px">
+        <el-form-item label="旧密码" prop="oldPassword" v-if="pwdIsSelf">
           <el-input type="password" v-model="pwdForm.oldPassword" placeholder="请输入旧密码"></el-input>
         </el-form-item>
-        <el-form-item label="新密码">
-          <el-input type="password" v-model="pwdForm.newPassword" placeholder="请输入新密码"></el-input>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input type="password" v-model="pwdForm.newPassword" show-password placeholder="请输入新密码"></el-input>
+          <div class="pwd-hint">长度8~64位，须同时包含大写字母、小写字母和数字</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -158,7 +160,19 @@ let insertForm = reactive({
 
 const insertRules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: (err?: Error) => void) => {
+        if (!value || value.length < 8) return callback(new Error('密码长度不能少于8位'));
+        if (value.length > 64) return callback(new Error('密码长度不能超过64位'));
+        if (!/[A-Z]/.test(value)) return callback(new Error('密码必须包含大写字母 A-Z'));
+        if (!/[a-z]/.test(value)) return callback(new Error('密码必须包含小写字母 a-z'));
+        if (!/[0-9]/.test(value)) return callback(new Error('密码必须包含数字 0-9'));
+        callback();
+      }, trigger: 'blur'
+    }
+  ],
 };
 
 const handleInsert = () => {
@@ -200,6 +214,7 @@ const saveInsert = async () => {
 
 // 修改密码弹窗和保存
 const pwdVisible = ref(false);
+const pwdFormRef = ref<FormInstance>();
 const pwdForm = reactive({
   id: 0,
   oldPassword: null,
@@ -212,6 +227,22 @@ const pwdDialogTitle = computed(() => {
   return `重置密码 - ${pwdTargetUsername.value}`;
 });
 
+const pwdRules: FormRules = {
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: (err?: Error) => void) => {
+        if (!value || value.length < 8) return callback(new Error('密码长度不能少于8位'));
+        if (value.length > 64) return callback(new Error('密码长度不能超过64位'));
+        if (!/[A-Z]/.test(value)) return callback(new Error('密码必须包含大写字母 A-Z'));
+        if (!/[a-z]/.test(value)) return callback(new Error('密码必须包含小写字母 a-z'));
+        if (!/[0-9]/.test(value)) return callback(new Error('密码必须包含数字 0-9'));
+        callback();
+      }, trigger: 'blur'
+    }
+  ],
+};
+
 const handleUpdatePassword = (row: UserItem) => {
   pwdForm.id = row.id;
   pwdForm.oldPassword = null;
@@ -221,18 +252,27 @@ const handleUpdatePassword = (row: UserItem) => {
 };
 
 const savePassword = async () => {
+  if (!pwdFormRef.value) return;
+  const valid = await pwdFormRef.value.validate().catch(() => false);
+  if (!valid) return;
+
   const res = await updatePassword(pwdForm);
   const code = res.data.code;
   if (code !== 0) {
     ElMessage.error(res.data.message);
   } else {
-    ElMessage.success("修改密码成功，请重新登录");
     pwdVisible.value = false;
-    // 修改密码后 token 已失效，清理并跳转登录页
-    localStorage.removeItem('token');
-    localStorage.removeItem('ms_username');
-    localStorage.removeItem('ms_keys');
-    router.push('/login');
+    if (pwdIsSelf.value) {
+      // 修改自己密码后 token 已失效，清理并跳转登录页
+      ElMessage.success("修改密码成功，请重新登录");
+      localStorage.removeItem('token');
+      localStorage.removeItem('ms_username');
+      localStorage.removeItem('ms_keys');
+      router.push('/login');
+    } else {
+      ElMessage.success("重置密码成功");
+      await getList();
+    }
   }
 };
 
@@ -254,4 +294,10 @@ const handleDelete = async (id: number) => {
 </script>
 
 <style scoped>
+.pwd-hint {
+  font-size: 12px;
+  color: var(--color-fg-tertiary, #909399);
+  margin-top: 4px;
+  line-height: 1.4;
+}
 </style>

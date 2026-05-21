@@ -37,14 +37,17 @@
         <el-table-column prop="creator" label="创建人" align="center"></el-table-column>
         <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
 
-        <el-table-column label="操作" width="200" align="right">
+        <el-table-column label="操作" width="240" align="right">
           <template #default="scope">
             <div v-if="scope.row.execType !== 1" class="action-group">
               <el-button text :icon="Top" type="primary" @click="handleViewReport(scope.row.id)" v-permiss="1">预览</el-button>
               <el-button text :icon="Download" type="primary" @click="handleDownload(scope.row.id)" v-permiss="1">下载</el-button>
             </div>
             <div class="action-group">
+              <el-button text :icon="TrendCharts" type="primary" @click="openCompareSelect(scope.row)" v-permiss="1">对比</el-button>
               <el-button text :icon="Search" type="primary" @click="drawer = true,handleJMeterLog(scope.row.id)" v-permiss="1">日志</el-button>
+            </div>
+            <div class="action-group">
               <el-button text :icon="Delete" type="danger" @click="handleDelete(scope.row.id)" v-permiss="1">删除</el-button>
             </div>
           </template>
@@ -65,9 +68,6 @@
     </div>
 
     <!--    抽屉查看日志-->
-<!--    <el-drawer v-model="drawer" title="jmeter.log日志" :show-close="true" :with-header="true" :size="'60%'">-->
-<!--      <pre><div v-text="jmxLog"></div></pre>-->
-<!--    </el-drawer>-->
     <el-drawer
         v-model="drawer"
         title="执行日志"
@@ -79,6 +79,37 @@
         <VirtualTextViewer :content="jmxLog" />
       </div>
     </el-drawer>
+
+    <!-- 选择对比报告对话框 -->
+    <el-dialog title="选择对比报告" v-model="compareSelectVisible" width="700px" destroy-on-close>
+      <el-table :data="compareCandidates" stripe size="small">
+        <el-table-column prop="id" label="编号" width="80" align="center"></el-table-column>
+        <el-table-column prop="name" label="名称" align="center"></el-table-column>
+        <el-table-column prop="execType" label="类型" align="center" width="90">
+          <template #default="scope">
+            <span v-if="scope.row.execType === 1" class="state-pill sp-debug">调试</span>
+            <span v-else class="state-pill sp-load">压测</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="执行时间" align="center" min-width="160"></el-table-column>
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="scope">
+            <el-button text type="primary" size="small" @click="confirmCompare(scope.row.id)">选择</el-button>
+          </template>
+        </el-table-column>
+        <template #empty><el-empty description="无可对比报告" /></template>
+      </el-table>
+    </el-dialog>
+
+    <!-- 对比结果对话框 -->
+    <el-dialog :title="compareTitle" v-model="compareVisible" width="960px" destroy-on-close>
+      <JmeterCompareChart
+        :base-data="compareBaseData"
+        :target-data="compareTargetData"
+        :base-name="compareBaseName"
+        :target-name="compareTargetName"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -86,8 +117,9 @@
 import {ref, reactive, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
-import { Download, Search, Delete, Edit, Refresh, Top } from '@element-plus/icons-vue';
-import {cleanReport, downloadReport, getLog, getReportList, viewReport} from "../api/report";
+import { Download, Search, Delete, Edit, Refresh, Top, TrendCharts } from '@element-plus/icons-vue';
+import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase} from "../api/report";
+import JmeterCompareChart from '../components/JmeterCompareChart.vue';
 import {checkToLogin, handleTestCaseClick} from "../common/push";
 import {useRoute} from "vue-router";
 import router from "../router";
@@ -195,6 +227,48 @@ const handleJMeterLog = async (id: number) => {
   const res = await getLog(id);
   console.log("res: ", res);
   jmxLog.value = res.data;
+};
+
+// 对比功能
+const compareSelectVisible = ref(false);
+const compareVisible = ref(false);
+const compareBaseId = ref(0);
+const compareBaseName = ref('');
+const compareCandidates = ref<any[]>([]);
+const compareTitle = ref('报告对比');
+const compareBaseData = ref<any[]>([]);
+const compareTargetData = ref<any[]>([]);
+const compareTargetName = ref('');
+
+const openCompareSelect = async (row: ReportItem) => {
+  compareBaseId.value = row.id;
+  compareBaseName.value = row.name || `报告 #${row.id}`;
+  compareSelectVisible.value = true;
+  // 拉取同用例的其他报告作为候选
+  const res = await getReportListByTestCase({
+    testCaseId: row.testCaseId,
+    page: 1,
+    size: 100
+  });
+  if (res.data.code === 0) {
+    compareCandidates.value = (res.data.data.list || []).filter((r: any) => r.id !== row.id);
+  }
+};
+
+const confirmCompare = async (targetId: number) => {
+  compareSelectVisible.value = false;
+  const res = await compareReports(compareBaseId.value, targetId, 5);
+  if (res.data.code !== 0) {
+    ElMessage.error(res.data.message || '对比失败');
+    return;
+  }
+  const data = res.data.data;
+  compareBaseName.value = data.baseName || '基准';
+  compareTargetName.value = data.targetName || '对比';
+  compareBaseData.value = data.base || [];
+  compareTargetData.value = data.target || [];
+  compareTitle.value = `${compareBaseName.value} vs ${compareTargetName.value}`;
+  compareVisible.value = true;
 };
 
 </script>

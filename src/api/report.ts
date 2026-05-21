@@ -95,3 +95,11 @@ export const viewReport = (id: number) => {
         method: 'get'
     });
 }
+
+export const compareReports = (baseId: number, targetId: number, window: number = 5) => {
+    return request({
+        url: '/report/compare',
+        method: 'get',
+        params: { baseId, targetId, window }
+    });
+}

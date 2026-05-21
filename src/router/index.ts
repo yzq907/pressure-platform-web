@@ -102,6 +102,15 @@ const routes: RouteRecordRaw[] = [
                 },
                 component: () => import('../views/profile.vue'),
             },
+            {
+                path: '/audit',
+                name: 'baseAudit',
+                meta: {
+                    title: '审计日志',
+                    permiss: '1',
+                },
+                component: () => import('../views/audit.vue'),
+            },
         ],
     },
     {

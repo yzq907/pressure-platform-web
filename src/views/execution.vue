@@ -138,8 +138,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="压力机数">
-          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount" :step="1" :disabled="maxSlaveCount <= 1" />
-          <span class="form-hint">可用 {{ maxSlaveCount }} 台</span>
+          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1" />
+          <span class="form-hint" v-if="maxSlaveCount > 0">可用 {{ maxSlaveCount }} 台</span>
+          <span class="form-hint" v-else style="color: var(--color-error)">该区域暂无可用压力机</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -358,13 +359,21 @@ const openScheduleEdit = async (row: TableRow) => {
       getEnableSlaveCount(rp.region || undefined)
     ]);
     if (regionRes.data.code === 0) regionList.value = regionRes.data.data;
-    if (countRes.data.code === 0) maxSlaveCount.value = Math.max(1, countRes.data.data);
+    if (countRes.data.code === 0) maxSlaveCount.value = countRes.data.data || 0;
   } catch { /* ignore */ }
+
+  // 如果当前可用数小于保存的值，则降到当前可用数
+  if (scheduleForm.runParam.slaveCount > maxSlaveCount.value) {
+    scheduleForm.runParam.slaveCount = Math.max(1, maxSlaveCount.value);
+  }
 
   scheduleVisible.value = true;
 };
 
 const confirmScheduleEdit = async () => {
+  if (maxSlaveCount.value < 1 && scheduleForm.runParam.region) {
+    ElMessage.error('所选区域暂无可用压力机，无法保存'); return;
+  }
   let scheduleData: any = {};
   if (scheduleForm.scheduleType === 'once') {
     if (!scheduleForm.onceDateTime) { ElMessage.error('请选择执行时间'); return; }
@@ -417,7 +426,7 @@ const onScheduleRegionChange = async () => {
   scheduleForm.runParam.slaveCount = 1;
   try {
     const res = await getEnableSlaveCount(scheduleForm.runParam.region || undefined);
-    if (res.data.code === 0) maxSlaveCount.value = Math.max(1, res.data.data);
+    if (res.data.code === 0) maxSlaveCount.value = res.data.data || 0;
   } catch { /* ignore */ }
 };
 

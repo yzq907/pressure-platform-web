@@ -43,6 +43,7 @@ declare module '@vue/runtime-core' {
     ElTimePicker: typeof import('element-plus/es')['ElTimePicker']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     Header: typeof import('./src/components/header.vue')['default']
+    JmeterCompareChart: typeof import('./src/components/JmeterCompareChart.vue')['default']
     JmeterMetricsChart: typeof import('./src/components/JmeterMetricsChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

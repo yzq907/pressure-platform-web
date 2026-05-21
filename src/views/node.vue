@@ -26,6 +26,31 @@
             <span v-if="scope.row.status === 2" class="state-pill sp-error"><span class="sp-dot"></span>启动失败</span>
           </template>
         </el-table-column>
+        <el-table-column prop="healthStatus" label="健康" align="center" width="90">
+          <template #default="scope">
+            <span v-if="scope.row.healthStatus === 1" class="state-pill sp-success"><span class="sp-dot"></span>在线</span>
+            <span v-else class="state-pill sp-error"><span class="sp-dot"></span>离线</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="lastHeartbeat" label="最近心跳" align="center" width="160"></el-table-column>
+        <el-table-column prop="cpuUsage" label="CPU%" align="center" width="80">
+          <template #default="scope">
+            <span v-if="scope.row.cpuUsage > 0">{{ scope.row.cpuUsage }}%</span>
+            <span v-else style="color: #c0c4cc;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="memUsage" label="内存%" align="center" width="80">
+          <template #default="scope">
+            <span v-if="scope.row.memUsage > 0">{{ scope.row.memUsage }}%</span>
+            <span v-else style="color: #c0c4cc;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="loadAvg" label="负载" align="center" width="70">
+          <template #default="scope">
+            <span v-if="scope.row.loadAvg > 0">{{ scope.row.loadAvg }}</span>
+            <span v-else style="color: #c0c4cc;">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="creator" label="创建人" align="center"></el-table-column>
         <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
         <el-table-column prop="modifier" label="修改人" align="center"></el-table-column>
