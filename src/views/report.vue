@@ -149,6 +149,12 @@ interface ReportItem {
   execType: number;
   status: number;
   responseData: string;
+  region: string;
+  serviceName: string;
+  totalThreads: number;
+  slaveCount: number;
+  grafanaInstance: string;
+  artifactDir: string;
   creator: string;
   modifier: string;
   createTime: string;

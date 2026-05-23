@@ -25,6 +25,14 @@ export const getReportListByTestCase = (param: any) => {
     });
 }
 
+export const getReportStats = (param: any) => {
+    return request({
+        url: '/report/stats',
+        method: 'get',
+        params: param
+    });
+}
+
 export const getJMeterResultByReport = (reportId: number) => {
     return request({
         url: '/report/getJMeterResult/' + reportId,

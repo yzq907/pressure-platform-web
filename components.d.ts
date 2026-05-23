@@ -43,12 +43,18 @@ declare module '@vue/runtime-core' {
     ElTimePicker: typeof import('element-plus/es')['ElTimePicker']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     Header: typeof import('./src/components/header.vue')['default']
+    HistoryReportDrawer: typeof import('./src/components/testcase/HistoryReportDrawer.vue')['default']
     JmeterCompareChart: typeof import('./src/components/JmeterCompareChart.vue')['default']
     JmeterMetricsChart: typeof import('./src/components/JmeterMetricsChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    RunParamDialog: typeof import('./src/components/testcase/RunParamDialog.vue')['default']
+    ScheduleTaskDialog: typeof import('./src/components/testcase/ScheduleTaskDialog.vue')['default']
     Sidebar: typeof import('./src/components/sidebar.vue')['default']
     Tags: typeof import('./src/components/tags.vue')['default']
+    TestcaseFormDialog: typeof import('./src/components/testcase/TestcaseFormDialog.vue')['default']
+    TestcaseKpiStrip: typeof import('./src/components/testcase/TestcaseKpiStrip.vue')['default']
+    TestcaseTable: typeof import('./src/components/testcase/TestcaseTable.vue')['default']
     VirtualTextViewer: typeof import('./src/components/VirtualTextViewer.vue')['default']
   }
   export interface ComponentCustomProperties {

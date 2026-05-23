@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps<{
   content: string;
@@ -27,6 +27,7 @@ const containerRef = ref<HTMLElement>();
 const scrollTop = ref(0);
 const containerHeight = ref(0);
 const bufferSize = 10;
+let resizeObserver: ResizeObserver | null = null;
 
 const lines = computed(() => {
   if (!props.content) return [];
@@ -71,10 +72,22 @@ watch(() => props.content, () => {
     containerRef.value.scrollTop = 0;
   }
   nextTick(updateContainerHeight);
-});
+}, { immediate: true });
 
 watch(() => lines.value.length, () => {
   nextTick(updateContainerHeight);
+}, { immediate: true });
+
+onMounted(() => {
+  nextTick(updateContainerHeight);
+  if (containerRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => updateContainerHeight());
+    resizeObserver.observe(containerRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
 });
 </script>
 

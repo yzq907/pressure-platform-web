@@ -1,67 +1,6 @@
 <template>
   <div>
-    <!-- ====== KPI Strip ====== -->
-    <div class="kpi-strip">
-      <div class="kpi-card kpi-primary">
-        <div class="kpi-icon">
-          <el-icon :size="18"><VideoPlay /></el-icon>
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">运行中</span>
-          <div class="kpi-value-row">
-            <span class="kpi-value">{{ stats.running }}</span>
-            <span v-if="stats.running > 0" class="kpi-pulse"></span>
-          </div>
-          <span class="kpi-delta neutral">实时计数</span>
-        </div>
-        <svg class="kpi-spark" viewBox="0 0 100 30" preserveAspectRatio="none">
-          <polyline points="0,20 12,15 24,18 36,10 48,12 60,6 72,8 84,4 100,2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon ki-amber">
-          <el-icon :size="18"><Timer /></el-icon>
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">未执行</span>
-          <div class="kpi-value-row">
-            <span class="kpi-value">{{ stats.idle }}</span>
-          </div>
-          <span class="kpi-delta neutral">待执行用例</span>
-        </div>
-        <svg class="kpi-spark sp-amber" viewBox="0 0 100 30" preserveAspectRatio="none">
-          <polyline points="0,22 12,18 24,20 36,14 48,16 60,10 72,8 84,12 100,6" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon ki-green">
-          <el-icon :size="18"><Select /></el-icon>
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">成功率</span>
-          <div class="kpi-value-row">
-            <span class="kpi-value">{{ stats.successRate }}<small>%</small></span>
-          </div>
-          <span class="kpi-delta neutral">当前筛选 · {{ stats.success }} 成功 / {{ stats.error }} 失败</span>
-        </div>
-        <div class="kpi-progress"><span :style="{ width: stats.successRate + '%' }"></span></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon ki-violet">
-          <el-icon :size="18"><Document /></el-icon>
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">用例总数</span>
-          <div class="kpi-value-row">
-            <span class="kpi-value">{{ total }}</span>
-          </div>
-          <span class="kpi-delta neutral">已搜索结果</span>
-        </div>
-        <div class="kpi-cluster">
-          <span v-for="i in 8" :key="i" :class="['node-dot', i <= Math.min(8, Math.ceil(total / Math.max(1, total) * 8)) ? 'on' : '']"></span>
-        </div>
-      </div>
-    </div>
+    <TestcaseKpiStrip :stats="stats" :total="total" />
 
     <div class="container">
       <div class="handle-box" style="flex-wrap:nowrap">
@@ -88,65 +27,19 @@
         <el-button type="primary" :icon="Plus" @click="handleInsert">新增用例</el-button>
       </div>
 
-      <el-table :data="testCaseData" stripe class="table" ref="multipleTable" v-loading="loading">
-        <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
-        <el-table-column prop="name" label="名称" align="center"></el-table-column>
-        <el-table-column prop="description" label="描述" align="center"></el-table-column>
-        <el-table-column prop="biz" label="产品" align="center"></el-table-column>
-        <el-table-column prop="service" label="服务" align="center"></el-table-column>
-        <el-table-column prop="version" label="版本" align="center"></el-table-column>
-        <el-table-column prop="status" label="状态" align="center">
-          <template #default="scope">
-            <span v-if="scope.row.status === 0" class="state-pill sp-idle"><span class="sp-dot"></span>没有执行</span>
-            <span v-if="scope.row.status === 1" class="state-pill sp-running"><span class="sp-dot"></span>正在执行</span>
-            <span v-if="scope.row.status === 2" class="state-pill sp-success"><span class="sp-dot"></span>执行成功</span>
-            <span v-if="scope.row.status === 3" class="state-pill sp-error"><span class="sp-dot"></span>执行异常</span>
-            <span v-if="scope.row.status === 4" class="state-pill sp-waiting"><span class="sp-dot"></span>排队等待</span>
-            <span v-if="scope.row.status === 5" class="state-pill sp-idle"><span class="sp-dot"></span>排队取消</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="creator" label="创建人" align="center"></el-table-column>
-        <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
-        <el-table-column prop="modifier" label="修改人" align="center"></el-table-column>
-        <el-table-column prop="modifyTime" label="修改时间" align="center"></el-table-column>
-
-        <el-table-column label="操作" width="200" align="right">
-          <template #default="scope">
-            <div class="action-group">
-              <el-button text :icon="Search" type="primary" @click="drawer = true, getFullTestCase(scope.row.id)" v-permiss="1">详情</el-button>
-              <el-button text :icon="Edit" type="primary" @click="handleEdit(scope.row)" v-permiss="1">编辑</el-button>
-            </div>
-            <div class="action-group">
-              <el-button text :icon="Plus" type="primary" @click="goReports(scope.row.id)" v-permiss="1">报告</el-button>
-              <el-button text :icon="Timer" type="primary" @click="openHistoryDrawer(scope.row.id, scope.row.name)" v-permiss="1">历史</el-button>
-            </div>
-            <div class="action-group">
-              <el-dropdown trigger="click">
-                <el-button text :icon="Right" type="primary" v-permiss="1">执行</el-button>
-                <template #dropdown>
-                  <el-dropdown-menu class="horizontal-dropdown-menu">
-                    <el-dropdown-item class="dropdown-button" @click="debugAction(scope.row.id)"
-                      ><span class="state-pill sp-debug">调试</span></el-dropdown-item
-                    >
-                    <el-dropdown-item class="dropdown-button" @click="openRunDialog(scope.row)"
-                      ><span class="state-pill sp-load">压测</span></el-dropdown-item
-                    >
-                    <el-dropdown-item class="dropdown-button" @click="openScheduleDialog(scope.row)"
-                      ><span class="state-pill sp-success">定时压测</span></el-dropdown-item
-                    >
-                    <el-dropdown-item class="dropdown-button" @click="stopAction(scope.row.id)"
-                      ><span class="state-pill sp-error">停止</span></el-dropdown-item
-                    >
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-              <el-button text :icon="Delete" type="danger" @click="handleDelete(scope.row.id)" v-permiss="1">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-
-        <template #empty><el-empty description="暂无用例数据" /></template>
-      </el-table>
+      <TestcaseTable
+        :rows="testCaseData"
+        :loading="loading"
+        @detail="openDetail"
+        @edit="handleEdit"
+        @reports="goReports"
+        @history="openHistoryDrawer"
+        @debug="debugAction"
+        @run="openRunDialog"
+        @schedule="openScheduleDialog"
+        @stop="stopAction"
+        @delete="handleDelete"
+      />
 
       <div class="pagination">
         <el-pagination
@@ -160,229 +53,43 @@
       </div>
     </div>
 
-    <!-- 新增弹出框 -->
-    <el-dialog title="新增用例" v-model="insertVisible" width="30%">
-      <el-form label-width="70px">
-        <el-form-item label="名称">
-          <el-input v-model="insertForm.name" placeholder="名称"></el-input>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="insertForm.description" placeholder="描述"></el-input>
-        </el-form-item>
-        <el-form-item label="产品线">
-          <el-select v-model="insertForm.biz" placeholder="产品线" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in bizOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="服务">
-          <el-select v-model="insertForm.service" placeholder="服务" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in serviceOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="版本号">
-          <el-select v-model="insertForm.version" placeholder="版本号" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in versionOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-divider content-position="left">压测参数</el-divider>
-        <el-form-item label="并发数">
-          <el-input v-model="insertForm.numThreads" placeholder="线程数，如 100"></el-input>
-        </el-form-item>
-        <el-form-item label="启动时间">
-          <el-input v-model="insertForm.rampTime" placeholder="Ramp-Up 秒数，如 10"></el-input>
-        </el-form-item>
-        <el-form-item label="运行时间">
-          <el-input v-model="insertForm.duration" placeholder="持续时间 秒数，如 300"></el-input>
-        </el-form-item>
-        <el-form-item label="超时时间">
-          <el-input-number v-model="insertForm.timeoutSeconds" :min="600" :max="86400" :step="60" style="width:100%"></el-input-number>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-				<span class="dialog-footer">
-					<el-button @click="insertVisible = false">取 消</el-button>
-					<el-button type="primary" @click="saveInsert">确 定</el-button>
-				</span>
-      </template>
-    </el-dialog>
+    <TestcaseFormDialog
+      v-model="insertVisible"
+      mode="insert"
+      :form="insertForm"
+      :biz-options="bizOptions"
+      :service-options="serviceOptions"
+      :version-options="versionOptions"
+      @confirm="saveInsert"
+    />
 
-    <!-- 编辑弹出框 -->
-    <el-dialog title="编辑用例" v-model="editVisible" width="30%">
-      <el-form label-width="70px">
-        <el-form-item label="编号">
-          <el-input v-model="editForm.id" disabled></el-input>
-        </el-form-item>
-        <el-form-item label="名称">
-          <el-input v-model="editForm.name" placeholder="名称" disabled></el-input>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="editForm.description" placeholder="描述"></el-input>
-        </el-form-item>
-        <el-form-item label="产品线">
-          <el-select v-model="editForm.biz" placeholder="产品线" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in bizOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="服务">
-          <el-select v-model="editForm.service" placeholder="服务" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in serviceOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="版本号">
-          <el-select v-model="editForm.version" placeholder="版本号" class="handle-select" filterable allow-create clearable>
-            <el-option v-for="item in versionOptions" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-divider content-position="left">压测参数</el-divider>
-        <el-form-item label="并发数">
-          <el-input v-model="editForm.numThreads" placeholder="线程数，如 100"></el-input>
-        </el-form-item>
-        <el-form-item label="启动时间">
-          <el-input v-model="editForm.rampTime" placeholder="Ramp-Up 秒数，如 10"></el-input>
-        </el-form-item>
-        <el-form-item label="运行时间">
-          <el-input v-model="editForm.duration" placeholder="持续时间 秒数，如 300"></el-input>
-        </el-form-item>
-        <el-form-item label="超时时间">
-          <el-input-number v-model="editForm.timeoutSeconds" :min="600" :max="86400" :step="60" style="width:100%"></el-input-number>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-				<span class="dialog-footer">
-					<el-button @click="editVisible = false">取 消</el-button>
-					<el-button type="primary" @click="saveEdit">确 定</el-button>
-				</span>
-      </template>
-    </el-dialog>
+    <TestcaseFormDialog
+      v-model="editVisible"
+      mode="edit"
+      :form="editForm"
+      :biz-options="bizOptions"
+      :service-options="serviceOptions"
+      :version-options="versionOptions"
+      @confirm="saveEdit"
+    />
 
-    <!-- 压测配置弹出框 -->
-    <el-dialog title="压测配置" v-model="runVisible" width="30%">
-      <el-form label-width="90px">
-        <el-form-item label="并发数">
-          <el-input v-model="runForm.numThreads" placeholder="并发线程数，如 100"></el-input>
-        </el-form-item>
-        <el-form-item label="启动时间">
-          <el-input v-model="runForm.rampTime" placeholder="Ramp-Up 秒数，如 10"></el-input>
-        </el-form-item>
-        <el-form-item label="运行时间">
-          <el-input v-model="runForm.duration" placeholder="持续时间 秒数，如 300"></el-input>
-        </el-form-item>
-        <el-form-item label="目标区域">
-          <el-select v-model="runForm.region" placeholder="全部区域" @change="onRegionChange" style="width:100%">
-            <el-option key="" label="全部区域" value=""></el-option>
-            <el-option v-for="r in regionList" :key="r" :label="r" :value="r"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="压力机数">
-          <el-input-number v-model="runForm.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1"></el-input-number>
-          <span v-if="maxSlaveCount > 0" style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
-          <span v-else style="margin-left:8px;color:#f56c6c;font-size:12px">该区域暂无可用压力机</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="runVisible = false">取 消</el-button>
-          <el-button type="primary" @click="confirmRun">确 定</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <RunParamDialog
+      v-model="runVisible"
+      :form="runForm"
+      :region-list="regionList"
+      :max-slave-count="maxSlaveCount"
+      @region-change="onRegionChange"
+      @confirm="confirmRun"
+    />
 
-    <!-- 定时压测配置弹出框 -->
-    <el-dialog title="定时压测" v-model="scheduleVisible" width="35%">
-      <el-form label-width="90px">
-        <el-form-item label="执行方式">
-          <el-radio-group v-model="scheduleForm.scheduleType">
-            <el-radio label="once">仅执行一次</el-radio>
-            <el-radio label="daily">每日</el-radio>
-            <el-radio label="weekly">每周</el-radio>
-            <el-radio label="monthly">每月</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="scheduleForm.scheduleType === 'once'" label="执行时间">
-          <el-date-picker
-              v-model="scheduleForm.onceDateTime"
-              type="datetime"
-              placeholder="选择日期时间"
-              format="YYYY-MM-DD HH:mm:ss"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              style="width:100%">
-          </el-date-picker>
-        </el-form-item>
-        <el-form-item v-if="scheduleForm.scheduleType === 'daily'" label="执行时间">
-          <el-time-picker
-              v-model="scheduleForm.dailyTime"
-              placeholder="选择时间"
-              format="HH:mm"
-              value-format="HH:mm"
-              style="width:100%">
-          </el-time-picker>
-        </el-form-item>
-        <template v-if="scheduleForm.scheduleType === 'weekly'">
-          <el-form-item label="执行时间">
-            <el-time-picker
-                v-model="scheduleForm.weeklyTime"
-                placeholder="选择时间"
-                format="HH:mm"
-                value-format="HH:mm"
-                style="width:100%">
-            </el-time-picker>
-          </el-form-item>
-          <el-form-item label="执行日">
-            <el-checkbox-group v-model="scheduleForm.daysOfWeek">
-              <el-checkbox :label="1">周一</el-checkbox>
-              <el-checkbox :label="2">周二</el-checkbox>
-              <el-checkbox :label="3">周三</el-checkbox>
-              <el-checkbox :label="4">周四</el-checkbox>
-              <el-checkbox :label="5">周五</el-checkbox>
-              <el-checkbox :label="6">周六</el-checkbox>
-              <el-checkbox :label="7">周日</el-checkbox>
-            </el-checkbox-group>
-          </el-form-item>
-        </template>
-        <template v-if="scheduleForm.scheduleType === 'monthly'">
-          <el-form-item label="执行时间">
-            <el-time-picker
-                v-model="scheduleForm.monthlyTime"
-                placeholder="选择时间"
-                format="HH:mm"
-                value-format="HH:mm"
-                style="width:100%">
-            </el-time-picker>
-          </el-form-item>
-          <el-form-item label="每月日">
-            <el-input-number v-model="scheduleForm.dayOfMonth" :min="1" :max="28" :step="1" step-strictly></el-input-number>
-            <span style="margin-left:8px;color:#909399;font-size:12px">建议1-28日以确保每月都可执行</span>
-          </el-form-item>
-        </template>
-        <el-divider content-position="left">压测参数</el-divider>
-        <el-form-item label="并发数">
-          <el-input v-model="scheduleForm.runParam.numThreads" placeholder="并发线程数，如 100"></el-input>
-        </el-form-item>
-        <el-form-item label="启动时间">
-          <el-input v-model="scheduleForm.runParam.rampTime" placeholder="Ramp-Up 秒数，如 10"></el-input>
-        </el-form-item>
-        <el-form-item label="运行时间">
-          <el-input v-model="scheduleForm.runParam.duration" placeholder="持续时间 秒数，如 300"></el-input>
-        </el-form-item>
-        <el-form-item label="目标区域">
-          <el-select v-model="scheduleForm.runParam.region" placeholder="全部区域" @change="onScheduleRegionChange" style="width:100%">
-            <el-option key="" label="全部区域" value=""></el-option>
-            <el-option v-for="r in regionList" :key="r" :label="r" :value="r"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="压力机数">
-          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1"></el-input-number>
-          <span v-if="maxSlaveCount > 0" style="margin-left:8px;color:#909399;font-size:12px">可用 {{ maxSlaveCount }} 台</span>
-          <span v-else style="margin-left:8px;color:#f56c6c;font-size:12px">该区域暂无可用压力机</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="scheduleVisible = false">取 消</el-button>
-          <el-button type="primary" @click="confirmSchedule">确 定</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <ScheduleTaskDialog
+      v-model="scheduleVisible"
+      :form="scheduleForm"
+      :region-list="regionList"
+      :max-slave-count="maxSlaveCount"
+      @region-change="onScheduleRegionChange"
+      @confirm="confirmSchedule"
+    />
 
 <!--    抽屉展示用例详情-->
     <el-drawer v-model="drawer" title="用例详情" :show-close="true" :size="'80%'">
@@ -408,9 +115,6 @@
             💻 JMX 压测脚本
           </div>
           <el-space direction="horizontal" alignment="center">
-            <el-button type="warning" @click="onlineDrawer = true, getOnlineJmxData(jmxFullData[0] ? jmxFullData[0].id : null)">
-              在线编写(测试中)
-            </el-button>
             <el-upload action="" :show-file-list="false" :http-request="handleJmxUpload" accept=".jmx">
               <el-button type="primary">本地上传</el-button>
             </el-upload>
@@ -1201,64 +905,71 @@
     <!--    抽屉展示脚本详情-->
     <el-drawer
         v-model="jmxDrawer"
-        title="脚本详情"
+        :title="jmxEditMode ? '源码编辑' : '脚本详情'"
         :show-close="true"
         :with-header="true"
         :size="'60%'"
     >
-      <div class="log-content">
-        <VirtualTextViewer :content="jmxFile" />
+      <div class="drawer-actions" style="margin-bottom: 12px; text-align: right;" v-if="!jmxEditMode">
+        <el-button type="primary" size="small" @click="enterJmxEdit">编辑</el-button>
+      </div>
+      <div class="drawer-actions" style="margin-bottom: 12px; text-align: right;" v-else>
+        <el-button size="small" @click="cancelJmxEdit">取消</el-button>
+        <el-button type="primary" size="small" @click="saveJmxEdit">保存</el-button>
+      </div>
+      <div class="log-content" style="height: calc(100% - 50px);">
+        <VirtualTextViewer v-if="!jmxEditMode" :content="jmxFile" />
+        <el-input
+          v-else
+          v-model="jmxEditContent"
+          type="textarea"
+          :rows="30"
+          style="font-family: var(--font-mono, monospace);"
+        />
       </div>
     </el-drawer>
 
     <!--    抽屉展示CSV详情-->
     <el-drawer
         v-model="csvDrawer"
-        title="数据详情"
+        :title="csvEditMode ? '编辑数据' : '数据详情'"
         :show-close="true"
         :with-header="true"
         :size="'60%'"
     >
-      <div class="log-content">
+      <div class="drawer-actions" style="margin-bottom: 12px; text-align: right;" v-if="!csvEditMode">
+        <el-button type="primary" size="small" @click="enterCsvEdit">编辑</el-button>
+      </div>
+      <div class="drawer-actions" style="margin-bottom: 12px; text-align: right;" v-else>
+        <el-button size="small" @click="cancelCsvEdit">取消</el-button>
+        <el-button type="primary" size="small" @click="saveCsvEdit">保存</el-button>
+      </div>
+      <div class="log-content" style="height: calc(100% - 50px);" v-if="!csvEditMode">
         <VirtualTextViewer :content="csvFile" />
+      </div>
+      <div v-else style="height: calc(100% - 50px);">
+        <el-input
+          v-model="csvTextContent"
+          type="textarea"
+          :rows="35"
+          style="font-family: var(--font-mono, monospace);"
+        />
       </div>
     </el-drawer>
 
   </div>
 
-    <!-- 历史报告抽屉 -->
-    <el-drawer v-model="historyDrawerVisible" :title="historyDrawerTitle" :size="'50%'" destroy-on-close>
-      <el-table :data="historyReports" stripe size="small" v-loading="historyLoading">
-        <el-table-column prop="id" label="编号" width="80" align="center"></el-table-column>
-        <el-table-column prop="name" label="名称" align="center"></el-table-column>
-        <el-table-column prop="execType" label="类型" align="center" width="90">
-          <template #default="scope">
-            <span v-if="scope.row.execType === 1" class="state-pill sp-debug">调试</span>
-            <span v-else class="state-pill sp-load">执行</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" align="center" width="100">
-          <template #default="scope">
-            <span v-if="scope.row.status === 0" class="state-pill sp-idle">未开始</span>
-            <span v-if="scope.row.status === 1" class="state-pill sp-running"><span class="sp-dot"></span>运行中</span>
-            <span v-if="scope.row.status === 2" class="state-pill sp-success">成功</span>
-            <span v-if="scope.row.status === 3" class="state-pill sp-error">异常</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="执行时间" align="center" min-width="160"></el-table-column>
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="scope">
-            <el-button text type="primary" size="small" :icon="TrendCharts" @click="openHistoryChart(scope.row.id)">曲线</el-button>
-          </template>
-        </el-table-column>
-        <template #empty><el-empty description="暂无历史报告" /></template>
-      </el-table>
-      <div class="pagination" style="margin-top:16px">
-        <el-pagination background layout="total, prev, pager, next"
-          :current-page="historyQuery.page" :page-size="historyQuery.size" :total="historyTotal"
-          @current-change="handleHistoryPageChange" size="small" />
-      </div>
-    </el-drawer>
+    <HistoryReportDrawer
+      v-model="historyDrawerVisible"
+      :title="historyDrawerTitle"
+      :reports="historyReports"
+      :loading="historyLoading"
+      :page="historyQuery.page"
+      :size="historyQuery.size"
+      :total="historyTotal"
+      @page-change="handleHistoryPageChange"
+      @open-chart="openHistoryChart"
+    />
 
     <!-- 历史曲线对话框 -->
     <el-dialog title="历史曲线" v-model="historyChartVisible" width="900px" destroy-on-close>
@@ -1270,7 +981,7 @@
 import {ref, reactive, onUnmounted, onMounted, onActivated, computed, watch} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
-import { Plus, Search, Delete, Edit, Refresh, Right, Upload, VideoPlay, Timer, Select, Document, TrendCharts } from '@element-plus/icons-vue';
+import { Plus, Search, Delete, Refresh } from '@element-plus/icons-vue';
 import {
   addTestCase, debugTestCase,
   deleteTestCase, getFull,
@@ -1283,12 +994,18 @@ import {
 import {getOptions} from "../api/config";
 import { addScheduledTask } from "../api/scheduledTask";
 import {CsvItem, JarItem, JmxItem} from "../common/item";
-import {deleteCsv, viewCsv, uploadCsv, downloadCsv} from "../api/csv";
-import {addOnlineJmx, deleteJmx, viewJmx, getOnlineJmx, updateOnlineJmx, uploadJmx, downloadJmx} from "../api/jmx";
+import {deleteCsv, viewCsv, uploadCsv, downloadCsv, updateCsv} from "../api/csv";
+import {addOnlineJmx, deleteJmx, viewJmx, getOnlineJmx, updateOnlineJmx, uploadJmx, downloadJmx, updateJmxContent} from "../api/jmx";
 import {deleteJar, downloadJar, uploadJar} from "../api/jar";
 import {getEnableSlaveCount, getRegions} from "../api/node";
 import {getReportListByTestCase, getMetrics} from "../api/report";
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
+import HistoryReportDrawer from '../components/testcase/HistoryReportDrawer.vue';
+import RunParamDialog from '../components/testcase/RunParamDialog.vue';
+import ScheduleTaskDialog from '../components/testcase/ScheduleTaskDialog.vue';
+import TestcaseFormDialog from '../components/testcase/TestcaseFormDialog.vue';
+import TestcaseKpiStrip from '../components/testcase/TestcaseKpiStrip.vue';
+import TestcaseTable from '../components/testcase/TestcaseTable.vue';
 import router from "../router";
 import {checkToLogin} from "../common/push";
 import {useRoute} from "vue-router";
@@ -1463,6 +1180,11 @@ const handleReset = () => {
   getList();
 };
 
+const openDetail = (id: number) => {
+  drawer.value = true;
+  getFullTestCase(id);
+};
+
 // 分页导航
 const handlePageChange = (val: number) => {
   query.page = val;
@@ -1506,6 +1228,47 @@ const saveInsert = async () => {
     ElMessage.success("新增成功");
     insertVisible.value = false;
     await getList(); // 等待getList()执行完再继续
+  }
+};
+
+// 表格编辑时弹窗和保存
+const editVisible = ref(false);
+let editForm = reactive({
+  id: null,
+  name: null,
+  description: null,
+  biz: null,
+  service: null,
+  version: null,
+  numThreads: null,
+  rampTime: null,
+  duration: null,
+  timeoutSeconds: 7200
+});
+
+const handleEdit = (row: any) => {
+  editForm.id = row.id;
+  editForm.name = row.name;
+  editForm.description = row.description;
+  editForm.biz = row.biz;
+  editForm.service = row.service;
+  editForm.version = row.version;
+  editForm.numThreads = row.numThreads || '10';
+  editForm.rampTime = row.rampTime || '0';
+  editForm.duration = row.duration || '60';
+  editForm.timeoutSeconds = row.timeoutSeconds || 7200;
+  editVisible.value = true;
+};
+
+const saveEdit = async () => {
+  const res = await updateTestCase(editForm.id, editForm);
+  const code = res.data.code
+  if (code != 0) {
+    ElMessage.error(res.data.message);
+  } else {
+    ElMessage.success("编辑成功");
+    editVisible.value = false;
+    await getList();
   }
 };
 
@@ -1609,48 +1372,6 @@ const confirmSchedule = async () => {
     ElMessage.success('定时任务创建成功');
     scheduleVisible.value = false;
     await getList();
-  }
-};
-
-// 表格编辑时弹窗和保存
-const editVisible = ref(false);
-let editForm = reactive({
-  id: null,
-  name: null,
-  description: null,
-  biz: null,
-  service: null,
-  version: null,
-  numThreads: null,
-  rampTime: null,
-  duration: null,
-  timeoutSeconds: 7200
-});
-
-const handleEdit = (row: any) => {
-  editForm.id = row.id;
-  editForm.name = row.name;
-  editForm.description = row.description;
-  editForm.biz = row.biz;
-  editForm.service = row.service;
-  editForm.version = row.version;
-  editForm.numThreads = row.numThreads || '10';
-  editForm.rampTime = row.rampTime || '0';
-  editForm.duration = row.duration || '60';
-  editForm.timeoutSeconds = row.timeoutSeconds || 7200;
-  editVisible.value = true;
-};
-
-const saveEdit = async () => {
-  const res = await updateTestCase(editForm.id, editForm);
-
-  const code = res.data.code
-  if (code != 0) {
-    ElMessage.error(res.data.message);
-  } else {
-    ElMessage.success("编辑成功");
-    editVisible.value = false;
-    await getList(); // 等待getList()执行完再继续
   }
 };
 
@@ -1958,16 +1679,68 @@ const handleJarDownload = async (id: number, jarName: string) => {
 
 // 预览jmx
 const jmxFile = ref('');
+const jmxEditMode = ref(false);
+const jmxEditContent = ref('');
+const currentJmxId = ref(0);
 const handleJmxView = async (id: number) => {
+  jmxEditMode.value = false;
+  currentJmxId.value = id;
   const res = await viewJmx(id);
   jmxFile.value = res.data;
 };
 
+const enterJmxEdit = () => {
+  jmxEditContent.value = jmxFile.value;
+  jmxEditMode.value = true;
+};
+
+const cancelJmxEdit = () => {
+  jmxEditMode.value = false;
+};
+
+const saveJmxEdit = async () => {
+  const res = await updateJmxContent(currentJmxId.value, jmxEditContent.value);
+  const code = res.data.code;
+  if (code !== 0) {
+    ElMessage.error(res.data.message || '保存失败');
+  } else {
+    ElMessage.success('保存成功');
+    jmxFile.value = jmxEditContent.value;
+    jmxEditMode.value = false;
+  }
+};
+
 // 预览csv
 const csvFile = ref('');
+const csvEditMode = ref(false);
+const csvTextContent = ref('');
+const currentCsvId = ref(0);
 const handleCsvView = async (id: number) => {
+  csvEditMode.value = false;
+  currentCsvId.value = id;
   const res = await viewCsv(id);
   csvFile.value = res.data;
+};
+
+const enterCsvEdit = () => {
+  csvTextContent.value = csvFile.value;
+  csvEditMode.value = true;
+};
+
+const cancelCsvEdit = () => {
+  csvEditMode.value = false;
+};
+
+const saveCsvEdit = async () => {
+  const res = await updateCsv(currentCsvId.value, csvTextContent.value);
+  const code = res.data.code;
+  if (code !== 0) {
+    ElMessage.error(res.data.message || '保存失败');
+  } else {
+    ElMessage.success('保存成功');
+    csvFile.value = csvTextContent.value;
+    csvEditMode.value = false;
+  }
 };
 
 
@@ -3015,19 +2788,6 @@ const handleCheckboxChange = (field: string, value: boolean) => {
   height: 30vh;
   margin-bottom: 20px;
 }
-.horizontal-dropdown-menu {
-  display: flex;
-  flex-direction: row;
-  padding: 6px;
-  gap: 4px;
-}
-.horizontal-dropdown-menu .el-dropdown-item {
-  padding: 4px 10px;
-  border-radius: var(--radius-md);
-}
-.horizontal-dropdown-menu .el-dropdown-item:hover {
-  background: var(--color-bg-muted);
-}
 .fixed-save-button {
   position: absolute;
   bottom: 20px;
@@ -3039,27 +2799,5 @@ const handleCheckboxChange = (field: string, value: boolean) => {
 .error-message {
   color: red;
   font-size: 12px;
-}
-
-/* 操作列按钮对齐 —— 三行每行两个，等宽对齐 */
-.action-group {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-.action-group:last-child {
-  margin-bottom: 0;
-}
-.action-group :deep(.el-button) {
-  justify-content: center;
-  padding: 4px 0 !important;
-  font-size: 13px;
-  height: 28px;
-  width: 100% !important;
-  margin: 0 !important;
-}
-.action-group .el-dropdown {
-  width: 100%;
 }
 </style>
