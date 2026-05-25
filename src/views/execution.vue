@@ -56,7 +56,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="runTime" label="执行时间" align="center" min-width="160"></el-table-column>
-      <el-table-column label="操作" width="260" align="right">
+      <el-table-column label="操作" width="320" align="right">
         <template #default="{ row }">
           <div class="action-group">
             <template v-if="row.rowType === 'report'">
@@ -65,6 +65,7 @@
             </template>
             <template v-else>
               <el-button text type="success" size="small" :icon="VideoPlay" @click="handleTriggerNow(row.scheduleId)">立即执行</el-button>
+              <el-button text type="primary" size="small" :icon="Tickets" @click="openScheduleLogs(row)">日志</el-button>
               <el-button text type="primary" size="small" :icon="Edit" @click="openScheduleEdit(row)">编辑</el-button>
               <el-button text type="danger" size="small" :icon="Delete" @click="handleDeleteSchedule(row.scheduleId)">删除</el-button>
             </template>
@@ -153,18 +154,62 @@
     <el-dialog title="实时监控" v-model="chartDialogVisible" width="900px" destroy-on-close>
       <JmeterMetricsChart :data="metricsData" />
     </el-dialog>
+
+    <el-drawer v-model="logDrawerVisible" :title="logDrawerTitle" size="70%" destroy-on-close>
+      <el-table :data="scheduleLogs" stripe size="small" v-loading="logLoading">
+        <el-table-column prop="triggerTime" label="触发时间" align="center" min-width="150"></el-table-column>
+        <el-table-column prop="status" label="状态" align="center" width="90">
+          <template #default="{ row }">
+            <span v-if="row.status === 'triggered'" class="state-pill sp-success">已触发</span>
+            <span v-else-if="row.status === 'skipped'" class="state-pill sp-waiting">已跳过</span>
+            <span v-else class="state-pill sp-error">失败</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="triggerType" label="触发类型" align="center" width="90">
+          <template #default="{ row }">
+            <span>{{ row.triggerType === 'manual' ? '手动' : '自动' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="region" label="区域" align="center" width="100">
+          <template #default="{ row }">
+            <code v-if="row.region" class="region-mono">{{ row.region }}</code>
+            <span v-else style="color:var(--color-fg-tertiary);font-size:12px">全部</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="压力机" align="center" min-width="160">
+          <template #default="{ row }">
+            请求 {{ row.requestedSlaveCount }} / 可用 {{ row.availableSlaveCount }} / 分配 {{ row.allocatedSlaveCount }}
+          </template>
+        </el-table-column>
+        <el-table-column label="压力机Host" align="center" min-width="160">
+          <template #default="{ row }">
+            <span>{{ formatSlaveHosts(row.slaveHosts) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="nextRunAt" label="下次执行" align="center" min-width="150">
+          <template #default="{ row }">{{ row.nextRunAt || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="reason" label="原因" align="left" min-width="260" show-overflow-tooltip></el-table-column>
+        <template #empty><el-empty description="暂无执行日志" /></template>
+      </el-table>
+      <div class="pagination" style="margin-top:16px">
+        <el-pagination background layout="total, prev, pager, next"
+          :current-page="logQuery.page" :page-size="logQuery.size" :total="logTotal"
+          @current-change="handleLogPageChange" size="small" />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts" name="execution">
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, Refresh, Close, TrendCharts, VideoPlay, Edit, Delete } from '@element-plus/icons-vue';
+import { Search, Refresh, Close, TrendCharts, VideoPlay, Edit, Delete, Tickets } from '@element-plus/icons-vue';
 import { getReportListAll, getMetrics } from '../api/report';
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
 import { stopExecution } from '../api/testcase';
 import { getTestCaseList } from '../api/testcase';
-import { listScheduledTasks, triggerScheduledTask, updateScheduledTask, deleteScheduledTask } from '../api/scheduledTask';
+import { listScheduledTasks, listScheduledTaskLogs, triggerScheduledTask, updateScheduledTask, deleteScheduledTask } from '../api/scheduledTask';
 import { getRegions, getEnableSlaveCount } from '../api/node';
 import { checkToLogin } from '../common/push';
 
@@ -180,6 +225,24 @@ interface TableRow {
   scheduleId?: number;
   _scheduleData?: string;
   _runParam?: string;
+}
+
+interface ScheduledTaskLogItem {
+  id: number;
+  scheduledTaskId: number;
+  testCaseId: number;
+  triggerType: string;
+  status: string;
+  reason: string;
+  message: string;
+  region: string;
+  requestedSlaveCount: number;
+  availableSlaveCount: number;
+  allocatedSlaveCount: number;
+  slaveHosts: string;
+  runParam: string;
+  triggerTime: string;
+  nextRunAt: string | null;
 }
 
 const query = reactive({
@@ -277,6 +340,57 @@ onUnmounted(() => {
 const handleSearch = () => { query.page = 1; getList(); };
 const handleReset = () => { query.name = null; query.region = null; getList(); };
 const handlePageChange = (val: number) => { query.page = val; };
+
+const logDrawerVisible = ref(false);
+const logDrawerTitle = ref('定时任务执行日志');
+const logLoading = ref(false);
+const scheduleLogs = ref<ScheduledTaskLogItem[]>([]);
+const logTotal = ref(0);
+const logQuery = reactive({
+  scheduledTaskId: null as number | null,
+  page: 1,
+  size: 10
+});
+
+const loadScheduleLogs = async () => {
+  if (!logQuery.scheduledTaskId) return;
+  logLoading.value = true;
+  try {
+    const res = await listScheduledTaskLogs(logQuery);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message);
+      return;
+    }
+    scheduleLogs.value = res.data.data.list || [];
+    logTotal.value = res.data.data.total || 0;
+  } finally {
+    logLoading.value = false;
+  }
+};
+
+const openScheduleLogs = async (row: TableRow) => {
+  logQuery.scheduledTaskId = row.scheduleId || null;
+  logQuery.page = 1;
+  const tcName = testcaseNameMap.value[row.testCaseId] || row.testCaseId;
+  logDrawerTitle.value = `定时任务执行日志 - ${tcName}`;
+  logDrawerVisible.value = true;
+  await loadScheduleLogs();
+};
+
+const handleLogPageChange = (val: number) => {
+  logQuery.page = val;
+  loadScheduleLogs();
+};
+
+const formatSlaveHosts = (value: string) => {
+  if (!value) return '-';
+  try {
+    const hosts = JSON.parse(value);
+    return Array.isArray(hosts) && hosts.length ? hosts.join(', ') : '-';
+  } catch {
+    return value || '-';
+  }
+};
 
 const handleStop = async (reportId: number) => {
   const res = await stopExecution(reportId);

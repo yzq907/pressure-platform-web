@@ -1,8 +1,18 @@
 <template>
   <div>
     <div class="container">
+      <el-tabs v-model="activeCategory" class="config-tabs" @tab-change="handleCategoryChange">
+        <el-tab-pane label="全部" name="all"></el-tab-pane>
+        <el-tab-pane
+          v-for="item in categories"
+          :key="item.key"
+          :label="item.name"
+          :name="item.key"
+        ></el-tab-pane>
+      </el-tabs>
+
       <!-- 业务选项配置 -->
-      <el-card shadow="hover" style="margin-bottom: 20px;">
+      <el-card v-if="activeCategory === 'business'" shadow="hover" style="margin-bottom: 20px;">
         <template #header>
           <div style="font-weight: bold;">业务选项配置</div>
         </template>
@@ -111,9 +121,9 @@
       </el-card>
 
       <!-- 系统配置 -->
-      <el-card shadow="hover" style="margin-bottom: 20px;">
+      <el-card v-if="activeCategory === 'retention'" shadow="hover" style="margin-bottom: 20px;">
         <template #header>
-          <div style="font-weight: bold;">系统配置</div>
+          <div style="font-weight: bold;">系统保留策略</div>
         </template>
 
         <el-form label-width="140px" style="max-width: 480px;">
@@ -155,6 +165,12 @@
 
       <el-table :data="configData" stripe class="table" ref="multipleTable" v-loading="loading">
         <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
+        <el-table-column prop="displayName" label="配置名称" min-width="130" align="center">
+          <template #default="scope">
+            {{ scope.row.displayName || scope.row.configKey }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="categoryName" label="分类" width="110" align="center"></el-table-column>
         <el-table-column prop="configKey" label="配置字段" align="center"></el-table-column>
         <el-table-column prop="configValue" label="字段值" align="center"></el-table-column>
         <el-table-column prop="description" label="字段描述" align="center"></el-table-column>
@@ -238,7 +254,7 @@
 import { ref, reactive } from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import { Plus, Search, Delete, Edit, Refresh } from '@element-plus/icons-vue';
-import {addConfig, deleteConfig, getConfigList, updateConfig, getOptions} from "../api/config";
+import {addConfig, deleteConfig, getConfigCategories, getConfigList, updateConfig, getOptions} from "../api/config";
 import {checkToLogin} from "../common/push";
 
 interface ConfigItem {
@@ -246,18 +262,32 @@ interface ConfigItem {
   configKey: string;
   configValue: string;
   description: string;
+  category: string;
+  categoryName: string;
+  displayName: string;
+  valueType: string;
+  sort: number;
   creator: string;
   modifier: string;
   createTime: string;
   modifyTime: string;
 }
 
+interface ConfigCategory {
+  key: string;
+  name: string;
+  sort: number;
+}
+
 const query = reactive({
   configKey: null,
+  category: null,
   page: 1,
   size: 10
 });
 
+const activeCategory = ref('all');
+const categories = ref<ConfigCategory[]>([]);
 const loading = ref(false);
 const configData = ref<ConfigItem[]>([]);
 const total = ref(0);
@@ -332,9 +362,19 @@ const saveRetentionConfig = async () => {
   }
 
   ElMessage.success('保存成功');
+  await getList();
 };
+
+const loadCategories = async () => {
+  const res = await getConfigCategories();
+  if (res.data.code === 0) {
+    categories.value = res.data.data || [];
+  }
+};
+
 const getList = () => {
   loading.value = true;
+  query.category = activeCategory.value === 'all' ? null : activeCategory.value;
   getConfigList(query).then(res => {
     checkToLogin(res.data.message);
     const code = res.data.code
@@ -347,6 +387,7 @@ const getList = () => {
   }).finally(() => { loading.value = false; });
 };
 getList();
+loadCategories();
 loadRetentionConfig();
 
 // ========== 业务选项管理 ==========
@@ -453,6 +494,7 @@ const saveOptionConfig = async (type: string, list: string[]) => {
       ElMessage.error(res.data.message);
     } else {
       ElMessage.success('保存成功');
+      await getList();
     }
   } else {
     const res = await addConfig({ configKey: key, configValue, description: desc });
@@ -461,6 +503,7 @@ const saveOptionConfig = async (type: string, list: string[]) => {
     } else {
       optionConfigIds[type] = res.data.data;
       ElMessage.success('保存成功');
+      await getList();
     }
   }
 };
@@ -474,6 +517,12 @@ const handleSearch = () => {
 
 const handleReset = () => {
   query.configKey = null;
+  query.page = 1;
+  getList();
+};
+
+const handleCategoryChange = () => {
+  query.page = 1;
   getList();
 };
 
@@ -508,6 +557,8 @@ const saveInsert = async () => {
     ElMessage.success("新增成功");
     insertVisible.value = false;
     await getList(); // 等待getList()执行完再继续
+    await loadOptions();
+    await loadRetentionConfig();
   }
 };
 
@@ -523,6 +574,8 @@ const handleDelete = async (id: number) => {
   } else {
     ElMessage.success("删除成功");
     await getList(); // 等待getList()执行完再继续
+    await loadOptions();
+    await loadRetentionConfig();
   }
 };
 
@@ -553,10 +606,15 @@ const saveEdit = async () => {
     ElMessage.success("编辑成功");
     editVisible.value = false;
     await getList(); // 等待getList()执行完再继续
+    await loadOptions();
+    await loadRetentionConfig();
   }
 };
 
 </script>
 
 <style scoped>
+.config-tabs {
+  margin-bottom: 16px;
+}
 </style>

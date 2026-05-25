@@ -39,6 +39,14 @@ export const listScheduledTasks = (query: any) => {
     });
 };
 
+export const listScheduledTaskLogs = (query: any) => {
+    return request({
+        url: '/scheduledTask/logs',
+        method: 'get',
+        params: query
+    });
+};
+
 export const listScheduledTasksByTestCase = (testCaseId: number) => {
     return request({
         url: '/scheduledTask/listByTestCase/' + testCaseId,

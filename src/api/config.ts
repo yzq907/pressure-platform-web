@@ -24,6 +24,13 @@ export const getConfigList = (param: any) => {
     });
 }
 
+export const getConfigCategories = () => {
+    return request({
+        url: '/config/categories',
+        method: 'get'
+    });
+}
+
 export const deleteConfig = (id: number) => {
     return request({
         url: '/config/delete/' + id,
