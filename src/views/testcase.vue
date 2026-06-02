@@ -4,15 +4,8 @@
 
     <div class="container">
       <div class="handle-box" style="flex-wrap:nowrap">
-        <el-input
-            v-model.number="query.id"
-            type="number"
-            placeholder="编号"
-            class="handle-input mr10"
-            style="width:90px"
-            @input="v => query.id = v.replace(/[^\d]/g, '')"
-        ></el-input>
         <el-input v-model="query.name" placeholder="名称" class="handle-input mr10" style="width:130px"></el-input>
+        <el-input v-model="query.description" placeholder="描述" class="handle-input mr10" style="width:160px"></el-input>
         <el-select v-model="query.biz" placeholder="产品线" class="handle-select mr10" style="width:120px" clearable filterable>
           <el-option v-for="item in bizOptions" :key="item" :label="item" :value="item"></el-option>
         </el-select>
@@ -78,6 +71,7 @@
       :form="runForm"
       :region-list="regionList"
       :max-slave-count="maxSlaveCount"
+      :submitting="runSubmitting"
       @region-change="onRegionChange"
       @confirm="confirmRun"
     />
@@ -985,7 +979,9 @@
 
     <!-- 历史曲线对话框 -->
     <el-dialog title="历史曲线" v-model="historyChartVisible" width="900px" destroy-on-close>
-      <JmeterMetricsChart :data="historyMetricsData" />
+      <div v-loading="historyChartLoading">
+        <JmeterMetricsChart :data="historyMetricsData" />
+      </div>
     </el-dialog>
 </template>
 
@@ -1051,6 +1047,7 @@ const route = useRoute();
 const query = reactive({
   id: route.query.id || null,  // 获取传递的testCaseId参数
   name: null,
+  description: null,
   biz: null,
   service: null,
   page: 1,
@@ -1180,6 +1177,7 @@ const handleSearch = () => {
   query.page = 1;
   if (query.id === '') query.id = null;
   if (query.name === '') query.name = null;
+  if (query.description === '') query.description = null;
   if (query.biz === '') query.biz = null;
   if (query.service === '') query.service = null;
   getList();
@@ -1188,6 +1186,7 @@ const handleSearch = () => {
 const handleReset = () => {
   query.id = null;
   query.name = null;
+  query.description = null;
   query.biz = null;
   query.service = null;
   getList();
@@ -1401,6 +1400,7 @@ const debugAction = async (id: number) => {
 
 // 压测配置弹窗
 const runVisible = ref(false);
+const runSubmitting = ref(false);
 const maxSlaveCount = ref(1);
 const regionList = ref<string[]>([]);
 const runForm = reactive({
@@ -1410,6 +1410,7 @@ const runForm = reactive({
   duration: '60',
   slaveCount: 1,
   region: '',
+  queuePolicy: 'fail_fast',
   threadGroupOverrides: []
 });
 
@@ -1438,12 +1439,14 @@ const onScheduleRegionChange = async () => {
 };
 
 const openRunDialog = async (row: any) => {
+  if (runSubmitting.value) return;
   runForm.id = row.id;
   runForm.numThreads = row.numThreads || '10';
   runForm.rampTime = row.rampTime || '0';
   runForm.duration = row.duration || '60';
   runForm.slaveCount = 1;
   runForm.region = '';
+  runForm.queuePolicy = 'fail_fast';
   runForm.threadGroupOverrides = [];
   // 获取区域列表和 slave 数量
   try {
@@ -1472,34 +1475,41 @@ const openRunDialog = async (row: any) => {
 };
 
 const confirmRun = async () => {
-  if (maxSlaveCount.value < 1 && runForm.region) {
+  if (runSubmitting.value) return;
+  if (maxSlaveCount.value < 1 && runForm.region && runForm.queuePolicy !== 'queue_when_no_slave') {
     ElMessage.error('所选区域暂无可用压力机，无法执行'); return;
   }
-  const res = await startTestCase(runForm.id, {
-    numThreads: runForm.numThreads,
-    rampTime: runForm.rampTime,
-    duration: runForm.duration,
-    slaveCount: runForm.slaveCount,
-    region: runForm.region,
-    threadGroupOverrides: runForm.threadGroupOverrides
-      .filter((item) => item.enabled !== item.originalEnabled || (item.mode && item.mode !== 'global'))
-      .map((item) => ({
-        key: item.key,
-        name: item.name,
-        enabled: item.enabled,
-        mode: item.mode,
-        numThreads: item.numThreads,
-        rampTime: item.rampTime,
-        duration: item.duration
-      }))
-  });
-  const code = res.data.code;
-  if (code != 0) {
-    ElMessage.error(res.data.message);
-  } else {
-    ElMessage.success("压测成功");
-    runVisible.value = false;
-    await getList();
+  runSubmitting.value = true;
+  try {
+    const res = await startTestCase(runForm.id, {
+      numThreads: runForm.numThreads,
+      rampTime: runForm.rampTime,
+      duration: runForm.duration,
+      slaveCount: runForm.slaveCount,
+      region: runForm.region,
+      queuePolicy: runForm.queuePolicy,
+      threadGroupOverrides: runForm.threadGroupOverrides
+        .filter((item) => item.enabled !== item.originalEnabled || (item.mode && item.mode !== 'global'))
+        .map((item) => ({
+          key: item.key,
+          name: item.name,
+          enabled: item.enabled,
+          mode: item.mode,
+          numThreads: item.numThreads,
+          rampTime: item.rampTime,
+          duration: item.duration
+        }))
+    });
+    const code = res.data.code;
+    if (code != 0) {
+      ElMessage.error(res.data.message);
+    } else {
+      ElMessage.success(runForm.queuePolicy === 'queue_when_no_slave' && maxSlaveCount.value < runForm.slaveCount ? "已提交到执行队列" : "启动压测成功");
+      runVisible.value = false;
+      await getList();
+    }
+  } finally {
+    runSubmitting.value = false;
   }
 };
 
@@ -1852,12 +1862,34 @@ const handleHistoryPageChange = (val: number) => {
 // 历史曲线
 const historyChartVisible = ref(false);
 const historyMetricsData = ref<any[]>([]);
+const historyChartLoading = ref(false);
+
+const waitForMetricsReady = async (reportId: number, windowSec = 5, retry = 5, interval = 1000) => {
+  for (let i = 0; i <= retry; i += 1) {
+    const res = await getMetrics(reportId, windowSec);
+    if (res.data.code !== 0) return res;
+    const items = res.data.data || [];
+    if (items.length > 0 || i === retry) return res;
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+};
 
 const openHistoryChart = async (reportId: number) => {
-  const res = await getMetrics(reportId, 5);
-  if (res.data.code === 0) {
-    historyMetricsData.value = res.data.data || [];
-    historyChartVisible.value = true;
+  historyChartVisible.value = true;
+  historyChartLoading.value = true;
+  historyMetricsData.value = [];
+  try {
+    const res = await waitForMetricsReady(reportId, 5);
+    if (res?.data.code === 0) {
+      historyMetricsData.value = res.data.data || [];
+      if (historyMetricsData.value.length === 0) {
+        ElMessage.warning('指标生成中或报告无 JTL 数据，请稍后再试');
+      }
+    } else {
+      ElMessage.error(res?.data.message || '曲线数据读取失败');
+    }
+  } finally {
+    historyChartLoading.value = false;
   }
 };
 

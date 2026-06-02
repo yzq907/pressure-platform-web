@@ -89,6 +89,21 @@ export const stopExecution = (reportId: number) => {
     });
 }
 
+export const getExecutionQueue = (param: any) => {
+    return request({
+        url: '/testcase/executionQueue',
+        method: 'get',
+        params: param
+    });
+}
+
+export const cancelQueuedExecution = (queueId: number) => {
+    return request({
+        url: '/testcase/cancelQueuedExecution/' + queueId,
+        method: 'get'
+    });
+}
+
 export const syncNode = (nodeId: number) => {
     return request({
         url: '/testcase/syncNode/' + nodeId,

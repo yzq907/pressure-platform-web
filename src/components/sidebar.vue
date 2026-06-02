@@ -86,7 +86,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { Odometer, MagicStick, DocumentCopy, Calendar, Setting, List, TrendCharts, Monitor, Tickets, UserFilled, Clock } from '@element-plus/icons-vue';
+import { Odometer, MagicStick, DocumentCopy, Calendar, Setting, List, TrendCharts, Monitor, Tickets, UserFilled, Clock, Key } from '@element-plus/icons-vue';
 
 const gradientId = 'sidebar-brand-gradient';
 
@@ -107,7 +107,7 @@ const systemItems = [
   { icon: Monitor, path: '/node', label: '节点管理', permiss: 'node' },
   { icon: Tickets, path: '/config', label: '配置管理', permiss: 'config' },
   { icon: UserFilled, path: '/user', label: '用户管理', permiss: 'user' },
-  { icon: Setting, path: '/role', label: '角色管理', permiss: 'role' },
+  { icon: Key, path: '/role', label: '角色管理', permiss: 'role' },
   { icon: Clock, path: '/audit', label: '审计日志', permiss: 'audit' },
 ];
 

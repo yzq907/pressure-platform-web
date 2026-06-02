@@ -647,6 +647,10 @@ a {
   color: var(--color-brand-700);
   background: rgba(59, 130, 246, 0.1);
 }
+.id-tag.waiting {
+  color: var(--color-amber);
+  background: rgba(245, 158, 11, 0.1);
+}
 
 /* ============================================
    Log Content (terminal style)

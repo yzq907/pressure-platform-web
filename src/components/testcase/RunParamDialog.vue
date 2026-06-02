@@ -4,6 +4,9 @@
       :model-value="modelValue"
       width="min(920px, calc(100vw - 32px))"
       class="run-param-dialog"
+      :close-on-click-modal="!submitting"
+      :close-on-press-escape="!submitting"
+      :show-close="!submitting"
       @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form label-position="top" class="run-param-form">
@@ -29,6 +32,12 @@
             <span v-if="maxSlaveCount > 0" class="slave-count-tip">可用 {{ maxSlaveCount }} 台</span>
             <span v-else class="slave-count-tip is-empty">该区域暂无可用压力机</span>
           </div>
+        </el-form-item>
+        <el-form-item label="压力机不足时" class="queue-policy-item">
+          <el-radio-group v-model="form.queuePolicy" class="queue-policy-group">
+            <el-radio-button label="fail_fast">直接失败</el-radio-button>
+            <el-radio-button label="queue_when_no_slave">进入队列</el-radio-button>
+          </el-radio-group>
         </el-form-item>
       </div>
 
@@ -76,8 +85,10 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="emit('update:modelValue', false)">取 消</el-button>
-        <el-button type="primary" @click="emit('confirm')">确 定</el-button>
+        <el-button :disabled="submitting" @click="emit('update:modelValue', false)">取 消</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="submitting" @click="emit('confirm')">
+          {{ submitting ? '启动中' : '确 定' }}
+        </el-button>
       </span>
     </template>
   </el-dialog>
@@ -89,6 +100,7 @@ defineProps<{
   form: any;
   regionList: string[];
   maxSlaveCount: number;
+  submitting?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -127,6 +139,14 @@ const typeText = (type: string) => {
 
 .slave-count-item {
   grid-column: span 2;
+}
+
+.queue-policy-item {
+  grid-column: span 3;
+}
+
+.queue-policy-group {
+  width: 100%;
 }
 
 .slave-count-control {
@@ -261,6 +281,10 @@ const typeText = (type: string) => {
     grid-column: span 2;
   }
 
+  .queue-policy-item {
+    grid-column: span 2;
+  }
+
   .thread-group-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -273,6 +297,10 @@ const typeText = (type: string) => {
   }
 
   .slave-count-item {
+    grid-column: span 1;
+  }
+
+  .queue-policy-item {
     grid-column: span 1;
   }
 

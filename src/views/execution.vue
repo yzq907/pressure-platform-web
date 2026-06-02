@@ -15,7 +15,7 @@
     <el-table :data="tableData" stripe class="table" ref="multipleTable" size="medium">
       <el-table-column label="编号" width="80" align="center">
         <template #default="{ row }">
-          <span :class="row.rowType === 'report' ? 'id-tag running' : 'id-tag scheduled'">
+          <span :class="row.rowType === 'report' ? 'id-tag running' : row.rowType === 'queue' ? 'id-tag waiting' : 'id-tag scheduled'">
             {{ row.id }}
           </span>
         </template>
@@ -37,6 +37,9 @@
             <span v-if="row.execType === 1" class="state-pill sp-debug">调试</span>
             <span v-else class="state-pill sp-load">执行</span>
           </template>
+          <template v-else-if="row.rowType === 'queue'">
+            <span class="state-pill sp-waiting">排队</span>
+          </template>
           <template v-else>
             <span v-if="row.scheduleType === 'once'" class="state-pill sp-success">仅一次</span>
             <span v-else-if="row.scheduleType === 'daily'" class="state-pill sp-waiting">每日</span>
@@ -50,18 +53,39 @@
           <template v-if="row.rowType === 'report'">
             <span class="state-pill sp-running"><span class="sp-dot"></span>运行中</span>
           </template>
+          <template v-else-if="row.rowType === 'queue'">
+            <span v-if="row.queueStatus === 'pending'" class="state-pill sp-waiting"><span class="sp-dot"></span>待执行</span>
+            <span v-else-if="row.queueStatus === 'canceling'" class="state-pill sp-waiting"><span class="sp-dot"></span>取消中</span>
+            <span v-else class="state-pill sp-running"><span class="sp-dot"></span>运行中</span>
+          </template>
           <template v-else>
             <span class="state-pill sp-waiting"><span class="sp-dot"></span>等待中</span>
           </template>
         </template>
       </el-table-column>
       <el-table-column prop="runTime" label="执行时间" align="center" min-width="160"></el-table-column>
+      <el-table-column label="占用节点" align="left" min-width="190" show-overflow-tooltip>
+        <template #default="{ row }">
+          <div v-if="getOccupiedNodeHosts(row).length" class="node-hosts">
+            <el-tag v-for="host in getOccupiedNodeHosts(row)" :key="host" size="small" effect="plain">
+              {{ host }}
+            </el-tag>
+          </div>
+          <span v-else-if="row.rowType === 'queue' && row.queueStatus === 'pending'" class="muted-text">待分配</span>
+          <span v-else-if="row.rowType === 'scheduled'" class="muted-text">待触发</span>
+          <span v-else class="muted-text">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="320" align="right">
         <template #default="{ row }">
           <div class="action-group">
             <template v-if="row.rowType === 'report'">
               <el-button text type="danger" size="small" :icon="Close" @click="handleStop(row.reportId)">停止</el-button>
               <el-button v-if="row.execType === 2" text type="primary" size="small" :icon="TrendCharts" @click="openChartDialog(row.reportId)">曲线</el-button>
+            </template>
+            <template v-else-if="row.rowType === 'queue'">
+              <el-button v-if="row.queueStatus === 'pending'" text type="danger" size="small" :icon="Close" @click="handleCancelQueue(row.queueId)">取消排队</el-button>
+              <span v-else class="row-message">{{ row.message || '-' }}</span>
             </template>
             <template v-else>
               <el-button text type="success" size="small" :icon="VideoPlay" @click="handleTriggerNow(row.scheduleId)">立即执行</el-button>
@@ -207,7 +231,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh, Close, TrendCharts, VideoPlay, Edit, Delete, Tickets } from '@element-plus/icons-vue';
 import { getReportListAll, getMetrics } from '../api/report';
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
-import { stopExecution } from '../api/testcase';
+import { cancelQueuedExecution, getExecutionQueue, stopExecution } from '../api/testcase';
 import { getTestCaseList } from '../api/testcase';
 import { listScheduledTasks, listScheduledTaskLogs, triggerScheduledTask, updateScheduledTask, deleteScheduledTask } from '../api/scheduledTask';
 import { getRegions, getEnableSlaveCount } from '../api/node';
@@ -217,12 +241,17 @@ interface TableRow {
   id: string;
   testCaseId: number;
   region: string;
-  rowType: 'report' | 'scheduled';
+  rowType: 'report' | 'scheduled' | 'queue';
   execType?: number;
   scheduleType?: string;
+  queueStatus?: string;
   runTime: string;
   reportId?: number;
   scheduleId?: number;
+  queueId?: number;
+  message?: string;
+  occupiedNodeHosts?: string[];
+  slaveHosts?: string;
   _scheduleData?: string;
   _runParam?: string;
 }
@@ -274,8 +303,9 @@ const getList = async () => {
   if (query.name != null && query.name !== '') params.name = query.name;
   if (query.region != null && query.region !== '') params.region = query.region;
 
-  const [reportRes, scheduleRes] = await Promise.all([
+  const [reportRes, queueRes, scheduleRes] = await Promise.all([
     getReportListAll(params),
+    getExecutionQueue({ status: 'pending', page: 1, size: 999 }),
     listScheduledTasks({ enabled: 1, page: 1, size: 999 })
   ]);
 
@@ -292,7 +322,31 @@ const getList = async () => {
         rowType: 'report',
         execType: r.execType,
         runTime: r.createTime,
-        reportId: r.id
+        reportId: r.id,
+        occupiedNodeHosts: Array.isArray(r.occupiedNodeHosts) ? r.occupiedNodeHosts : []
+      });
+    }
+  }
+
+  if (queueRes.data.code === 0) {
+    const queues = queueRes.data.data.list as any[];
+    for (const q of queues) {
+      const region = q.region || '';
+      if (query.region && region !== query.region) continue;
+      if (query.name) {
+        const tcName = testcaseNameMap.value[q.testCaseId] || '';
+        if (!tcName.includes(query.name)) continue;
+      }
+      rows.push({
+        id: 'Q-' + q.id,
+        testCaseId: q.testCaseId,
+        region,
+        rowType: 'queue',
+        queueStatus: q.status,
+        runTime: q.enqueueTime || '-',
+        queueId: q.id,
+        message: q.message || '',
+        slaveHosts: q.slaveHosts || ''
       });
     }
   }
@@ -392,12 +446,33 @@ const formatSlaveHosts = (value: string) => {
   }
 };
 
+const getOccupiedNodeHosts = (row: TableRow): string[] => {
+  if (row.rowType === 'report') {
+    return row.occupiedNodeHosts || [];
+  }
+  if (row.rowType === 'queue') {
+    const text = formatSlaveHosts(row.slaveHosts || '');
+    return text === '-' ? [] : text.split(',').map(item => item.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 const handleStop = async (reportId: number) => {
   const res = await stopExecution(reportId);
   if (res.data.code !== 0) {
     ElMessage.error(res.data.message);
   } else {
     ElMessage.success('已停止');
+    getList();
+  }
+};
+
+const handleCancelQueue = async (queueId: number) => {
+  const res = await cancelQueuedExecution(queueId);
+  if (res.data.code !== 0) {
+    ElMessage.error(res.data.message);
+  } else {
+    ElMessage.success('已取消排队');
     getList();
   }
 };
@@ -563,11 +638,15 @@ const fetchChartData = async () => {
   if (!currentReportId.value) return;
   const res = await getMetrics(currentReportId.value, 5);
   if (res.data.code !== 0) return;
-  metricsData.value = res.data.data || [];
+  const items = res.data.data || [];
+  if (items.length === 0 && metricsData.value.length > 0) return;
+  if (items.length < metricsData.value.length) return;
+  metricsData.value = items;
 };
 
 const openChartDialog = async (reportId: number) => {
   currentReportId.value = reportId;
+  metricsData.value = [];
   chartDialogVisible.value = true;
   await fetchChartData();
   chartTimer = setInterval(fetchChartData, 5000);
@@ -610,5 +689,20 @@ watch(chartDialogVisible, (visible) => {
   margin-left: 8px;
   font-size: 12px;
   color: var(--color-fg-tertiary);
+}
+.row-message {
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
+}
+.node-hosts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+}
+.muted-text {
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
 }
 </style>

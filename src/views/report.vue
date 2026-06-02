@@ -101,12 +101,14 @@
 
     <!-- 对比结果对话框 -->
     <el-dialog :title="compareTitle" v-model="compareVisible" width="960px" destroy-on-close>
-      <JmeterCompareChart
-        :base-data="compareBaseData"
-        :target-data="compareTargetData"
-        :base-name="compareBaseName"
-        :target-name="compareTargetName"
-      />
+      <div v-loading="compareLoading">
+        <JmeterCompareChart
+          :base-data="compareBaseData"
+          :target-data="compareTargetData"
+          :base-name="compareBaseName"
+          :target-name="compareTargetName"
+        />
+      </div>
     </el-dialog>
 
     <!-- 产物文件对话框 -->
@@ -341,6 +343,7 @@ const compareTitle = ref('报告对比');
 const compareBaseData = ref<any[]>([]);
 const compareTargetData = ref<any[]>([]);
 const compareTargetName = ref('');
+const compareLoading = ref(false);
 
 const openCompareSelect = async (row: ReportItem) => {
   compareBaseId.value = row.id;
@@ -357,20 +360,43 @@ const openCompareSelect = async (row: ReportItem) => {
   }
 };
 
+const waitForCompareReady = async (targetId: number, windowSec = 5, retry = 5, interval = 1000) => {
+  for (let i = 0; i <= retry; i += 1) {
+    const res = await compareReports(compareBaseId.value, targetId, windowSec);
+    if (res.data.code !== 0) return res;
+    const data = res.data.data || {};
+    const base = data.base || [];
+    const target = data.target || [];
+    if ((base.length > 0 && target.length > 0) || i === retry) return res;
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+};
+
 const confirmCompare = async (targetId: number) => {
   compareSelectVisible.value = false;
-  const res = await compareReports(compareBaseId.value, targetId, 5);
-  if (res.data.code !== 0) {
-    ElMessage.error(res.data.message || '对比失败');
-    return;
-  }
-  const data = res.data.data;
-  compareBaseName.value = data.baseName || '基准';
-  compareTargetName.value = data.targetName || '对比';
-  compareBaseData.value = data.base || [];
-  compareTargetData.value = data.target || [];
-  compareTitle.value = `${compareBaseName.value} vs ${compareTargetName.value}`;
   compareVisible.value = true;
+  compareLoading.value = true;
+  compareBaseData.value = [];
+  compareTargetData.value = [];
+  try {
+    const res = await waitForCompareReady(targetId, 5);
+    if (res.data.code !== 0) {
+      compareVisible.value = false;
+      ElMessage.error(res.data.message || '对比失败');
+      return;
+    }
+    const data = res.data.data;
+    compareBaseName.value = data.baseName || '基准';
+    compareTargetName.value = data.targetName || '对比';
+    compareBaseData.value = data.base || [];
+    compareTargetData.value = data.target || [];
+    compareTitle.value = `${compareBaseName.value} vs ${compareTargetName.value}`;
+    if (compareBaseData.value.length === 0 || compareTargetData.value.length === 0) {
+      ElMessage.warning('指标生成中或报告无 JTL 数据，请稍后再试');
+    }
+  } finally {
+    compareLoading.value = false;
+  }
 };
 
 </script>
