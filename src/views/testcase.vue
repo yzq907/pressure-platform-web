@@ -32,6 +32,7 @@
         @schedule="openScheduleDialog"
         @stop="stopAction"
         @delete="handleDelete"
+        @sort-change="handleSortChange"
       />
 
       <div class="pagination">
@@ -178,6 +179,37 @@
         </el-table>
       </el-card>
 
+      <!-- 上传接口文件资源模块 -->
+      <el-card shadow="hover" style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div style="font-weight: bold; font-size: 14px; border-bottom: 2px solid #E6A23C; padding-bottom: 5px;">
+            📎 上传接口文件资源
+          </div>
+          <el-space direction="horizontal" alignment="center">
+            <el-upload action="" :show-file-list="false" :http-request="handleUploadFileUpload">
+              <el-button type="primary">本地上传</el-button>
+            </el-upload>
+          </el-space>
+        </div>
+        <el-table :data="uploadFileFullData" border style="width: 100%">
+          <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
+          <el-table-column prop="dstName" label="名称" align="center">
+            <template #default="scope">
+              <div @click="handleUploadFileDownload(scope.row.id, scope.row.dstName)" style="color: blue; cursor: pointer;">
+                {{ scope.row.dstName }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="description" label="描述" align="center"></el-table-column>
+          <el-table-column prop="testCaseId" label="用例" align="center"></el-table-column>
+          <el-table-column label="操作" width="160" align="center">
+            <template #default="scope">
+              <el-button text type="danger" icon="el-icon-delete" @click="handleUploadFileDelete(scope.row.id)" v-permiss="'testcase'">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
       <!-- JAR依赖文件模块 -->
       <el-card shadow="hover">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -193,7 +225,13 @@
         </div>
         <el-table :data="jarFullData" border style="width: 100%">
           <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
-          <el-table-column prop="dstName" label="名称" align="center"></el-table-column>
+          <el-table-column prop="dstName" label="名称" align="center">
+            <template #default="scope">
+              <div @click="handleJarDownload(scope.row.id, scope.row.dstName)" style="color: blue; cursor: pointer;">
+                {{ scope.row.dstName }}
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="description" label="描述" align="center"></el-table-column>
           <el-table-column prop="testCaseId" label="用例" align="center"></el-table-column>
           <el-table-column label="操作" width="200" align="center">
@@ -1002,10 +1040,11 @@ import {
 } from "../api/testcase";
 import {getOptions} from "../api/config";
 import { addScheduledTask } from "../api/scheduledTask";
-import {CsvItem, JarItem, JmxItem} from "../common/item";
+import {CsvItem, JarItem, JmxItem, UploadFileItem} from "../common/item";
 import {deleteCsv, viewCsv, uploadCsv, downloadCsv, updateCsv, updateCsvStrategy} from "../api/csv";
 import {addOnlineJmx, deleteJmx, viewJmx, getOnlineJmx, updateOnlineJmx, uploadJmx, downloadJmx, updateJmxContent} from "../api/jmx";
 import {deleteJar, downloadJar, uploadJar} from "../api/jar";
+import {deleteUploadFile, downloadUploadFile, uploadUploadFile} from "../api/uploadFile";
 import {getEnableSlaveCount, getRegions} from "../api/node";
 import {getReportListByTestCase, getMetrics} from "../api/report";
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
@@ -1051,7 +1090,9 @@ const query = reactive({
   biz: null,
   service: null,
   page: 1,
-  size: 10
+  size: 10,
+  sortBy: 'id',
+  sortOrder: 'desc'
 });
 
 // 下拉选项
@@ -1189,6 +1230,20 @@ const handleReset = () => {
   query.description = null;
   query.biz = null;
   query.service = null;
+  query.sortBy = 'id';
+  query.sortOrder = 'desc';
+  getList();
+};
+
+const handleSortChange = ({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }) => {
+  const sortMap: Record<string, string> = {
+    id: 'id',
+    createTime: 'createTime',
+    modifyTime: 'modifyTime'
+  };
+  query.sortBy = sortMap[prop] || 'id';
+  query.sortOrder = order === 'ascending' ? 'asc' : 'desc';
+  query.page = 1;
   getList();
 };
 
@@ -1542,6 +1597,7 @@ interface TestCaseFullItem {
   jmxItem: JmxItem;
   csvItemList: CsvItem[];
   jarItemList: JarItem[];
+  uploadFileItemList: UploadFileItem[];
 }
 
 const testCaseFullData = ref<TestCaseFullItem>({
@@ -1558,7 +1614,8 @@ const testCaseFullData = ref<TestCaseFullItem>({
   testCaseDir: null,
   jmxItem: null,
   csvItemList: [],
-  jarItemList: []
+  jarItemList: [],
+  uploadFileItemList: []
 });
 // const jmxFullData = ref<JmxItem>({
 //   id: null,
@@ -1576,6 +1633,7 @@ const testCaseFullData = ref<TestCaseFullItem>({
 const jmxFullData = ref<JmxItem[]>([]);
 const csvFullData = ref<CsvItem[]>([]);
 const jarFullData = ref<JarItem[]>([]);
+const uploadFileFullData = ref<UploadFileItem[]>([]);
 
 const getFullTestCase = async (id: number) => {
   fullVisible.value = true;
@@ -1596,6 +1654,7 @@ const getFullTestCase = async (id: number) => {
   }
   csvFullData.value = fullData.csvVOList;
   jarFullData.value = fullData.jarVOList;
+  uploadFileFullData.value = fullData.uploadFileVOList || [];
 }
 
 //删除csv
@@ -1634,6 +1693,21 @@ const handleJarDelete = async (id: number) => {
     type: 'warning'
   });
   const res = await deleteJar(id);
+  const code = res.data.code
+  if (code != 0) {
+    ElMessage.error(res.data.message);
+  } else {
+    ElMessage.success("删除成功");
+    await getFullTestCase(testCaseFullData.value.id);
+  }
+};
+
+// 删除上传接口文件资源
+const handleUploadFileDelete = async (id: number) => {
+  await ElMessageBox.confirm('确定要删除吗？', '提示', {
+    type: 'warning'
+  });
+  const res = await deleteUploadFile(id);
   const code = res.data.code
   if (code != 0) {
     ElMessage.error(res.data.message);
@@ -1711,6 +1785,25 @@ const handleJarUpload = async (uploadRequestOptions) => {
   }
 }
 
+// 上传接口文件资源
+const handleUploadFileUpload = async (uploadRequestOptions) => {
+  const testCaseId = testCaseFullData.value.id;
+  const formData = new FormData();
+  formData.append("uploadFile", uploadRequestOptions.file);
+  const res = await uploadUploadFile(testCaseId, formData);
+  const code = res.data.code
+  if (code != 0) {
+    if (res.data.message && res.data.message.includes('未引用上传文件')) {
+      ElMessage.warning(res.data.message);
+    } else {
+      ElMessage.error(res.data.message);
+    }
+  } else {
+    ElMessage.success("上传成功");
+    await getFullTestCase(testCaseId);
+  }
+}
+
 
 const handleJmxDownload = async (id: number, jmxName: string) => {
   if (!jmxName) {
@@ -1740,6 +1833,17 @@ const handleJarDownload = async (id: number, jarName: string) => {
     return;
   }
   const res = await downloadJar(id, jarName);
+  if (!res.success) {
+    ElMessage.error("下载失败, 请重试");
+  }
+}
+
+const handleUploadFileDownload = async (id: number, fileName: string) => {
+  if (!fileName) {
+    ElMessage.error("上传接口文件不存在");
+    return;
+  }
+  const res = await downloadUploadFile(id, fileName);
   if (!res.success) {
     ElMessage.error("下载失败, 请重试");
   }

@@ -64,16 +64,18 @@
         </template>
       </el-table-column>
       <el-table-column prop="runTime" label="执行时间" align="center" min-width="160"></el-table-column>
-      <el-table-column label="占用节点" align="left" min-width="190" show-overflow-tooltip>
+      <el-table-column label="占用节点" align="center" min-width="190" show-overflow-tooltip>
         <template #default="{ row }">
-          <div v-if="getOccupiedNodeHosts(row).length" class="node-hosts">
-            <el-tag v-for="host in getOccupiedNodeHosts(row)" :key="host" size="small" effect="plain">
-              {{ host }}
-            </el-tag>
+          <div class="node-cell">
+            <div v-if="getOccupiedNodeHosts(row).length" class="node-hosts">
+              <el-tag v-for="host in getOccupiedNodeHosts(row)" :key="host" size="small" effect="plain">
+                {{ host }}
+              </el-tag>
+            </div>
+            <span v-else-if="row.rowType === 'queue' && row.queueStatus === 'pending'" class="muted-text">待分配</span>
+            <span v-else-if="row.rowType === 'scheduled'" class="muted-text">待触发</span>
+            <span v-else class="muted-text">-</span>
           </div>
-          <span v-else-if="row.rowType === 'queue' && row.queueStatus === 'pending'" class="muted-text">待分配</span>
-          <span v-else-if="row.rowType === 'scheduled'" class="muted-text">待触发</span>
-          <span v-else class="muted-text">-</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="320" align="right">
@@ -694,9 +696,16 @@ watch(chartDialogVisible, (visible) => {
   color: var(--color-fg-tertiary);
   font-size: 12px;
 }
+.node-cell {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+}
 .node-hosts {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 6px;
   min-height: 24px;

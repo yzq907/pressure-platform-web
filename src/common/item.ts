@@ -40,3 +40,16 @@ export interface CsvItem {
     createTime: string;
     modifyTime: string;
 }
+
+export interface UploadFileItem {
+    id: number;
+    srcName: string;
+    dstName: string;
+    description: string;
+    fileDir: string;
+    testCaseId: number;
+    creator: string;
+    modifier: string;
+    createTime: string;
+    modifyTime: string;
+}

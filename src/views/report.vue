@@ -4,6 +4,10 @@
       <div class="handle-box">
         <el-input v-model="query.name" placeholder="报告名称" class="handle-input mr10"></el-input>
         <el-input v-model="query.testCaseId" placeholder="用例" class="handle-input mr10"></el-input>
+        <el-select v-model="query.execType" placeholder="类型" class="handle-select mr10" style="width:120px" clearable>
+          <el-option label="调试" :value="1"></el-option>
+          <el-option label="压测" :value="2"></el-option>
+        </el-select>
 
 
         <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
@@ -174,6 +178,7 @@ const route = useRoute();
 const query = reactive({
   name: route.query.name || null,          // 获取传递的name参数
   testCaseId: route.query.testCaseId || null,  // 获取传递的testCaseId参数
+  execType: null as number | null,
   page: 1,
   size: 10
 });
@@ -185,6 +190,7 @@ const total = ref(0);
 const syncQueryFromRoute = () => {
   query.name = route.query.name || null;
   query.testCaseId = route.query.testCaseId || null;
+  query.execType = null;
   query.page = 1;
 };
 
@@ -229,6 +235,7 @@ const handleSearch = () => {
 const handleReset = () => {
   query.name = null;
   query.testCaseId = null;
+  query.execType = null;
   getList();
 };
 

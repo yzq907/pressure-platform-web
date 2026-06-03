@@ -1,6 +1,14 @@
 <template>
-  <el-table :data="rows" stripe class="table" ref="multipleTable" v-loading="loading">
-    <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
+  <el-table
+    :data="rows"
+    stripe
+    class="table"
+    ref="multipleTable"
+    v-loading="loading"
+    :default-sort="{ prop: 'id', order: 'descending' }"
+    @sort-change="emit('sort-change', $event)"
+  >
+    <el-table-column prop="id" label="编号" width="70" align="center" sortable="custom"></el-table-column>
     <el-table-column prop="name" label="名称" align="center"></el-table-column>
     <el-table-column prop="description" label="描述" align="center"></el-table-column>
     <el-table-column prop="biz" label="产品" align="center"></el-table-column>
@@ -17,9 +25,9 @@
       </template>
     </el-table-column>
     <el-table-column prop="creator" label="创建人" align="center"></el-table-column>
-    <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
+    <el-table-column prop="createTime" label="创建时间" align="center" sortable="custom"></el-table-column>
     <el-table-column prop="modifier" label="修改人" align="center"></el-table-column>
-    <el-table-column prop="modifyTime" label="修改时间" align="center"></el-table-column>
+    <el-table-column prop="modifyTime" label="修改时间" align="center" sortable="custom"></el-table-column>
     <el-table-column label="操作" width="200" align="right">
       <template #default="scope">
         <div class="action-group">
@@ -76,6 +84,7 @@ const emit = defineEmits<{
   (e: 'schedule', row: any): void;
   (e: 'stop', id: number): void;
   (e: 'delete', id: number): void;
+  (e: 'sort-change', payload: { prop: string; order: 'ascending' | 'descending' | null }): void;
 }>();
 </script>
 
