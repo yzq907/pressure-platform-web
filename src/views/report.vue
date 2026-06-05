@@ -41,12 +41,13 @@
         <el-table-column prop="creator" label="创建人" align="center"></el-table-column>
         <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
 
-        <el-table-column label="操作" width="320" align="right">
+        <el-table-column label="操作" width="310" align="right">
           <template #default="scope">
             <div class="report-actions">
               <el-button v-if="scope.row.execType !== 1" text :icon="Top" type="primary" @click="handleViewReport(scope.row.id)" v-permiss="'report'">预览</el-button>
               <el-button v-if="scope.row.execType !== 1" text :icon="Download" type="primary" @click="handleDownload(scope.row.id)" v-permiss="'report'">下载</el-button>
               <el-button v-if="scope.row.execType !== 1" text :icon="TrendCharts" type="primary" @click="handleGrafana(scope.row.id)" v-permiss="'report'">资源</el-button>
+              <el-button v-if="scope.row.execType !== 1" text :icon="DataAnalysis" type="primary" @click="openReportDetail(scope.row)" v-permiss="'report'">详情</el-button>
               <el-button v-if="scope.row.execType !== 1" text :icon="Box" type="primary" @click="openArtifacts(scope.row.id)" v-permiss="'report'">产物</el-button>
               <el-button text :icon="TrendCharts" type="primary" @click="openCompareSelect(scope.row)" v-permiss="'report'">对比</el-button>
               <el-button text :icon="Search" type="primary" @click="drawer = true,handleJMeterLog(scope.row.id)" v-permiss="'report'">日志</el-button>
@@ -131,6 +132,129 @@
         <template #empty><el-empty description="暂无产物文件" /></template>
       </el-table>
     </el-dialog>
+
+    <!-- 报告详情：压测曲线 + 平台内资源曲线 -->
+    <el-drawer v-model="detailVisible" :title="detailTitle" size="82%" destroy-on-close>
+      <div class="report-detail" v-loading="detailLoading">
+        <div class="detail-meta">
+          <span>区域：{{ detailReport?.region || '全部' }}</span>
+          <span>服务：{{ detailReport?.serviceName || '-' }}</span>
+          <span>实例：{{ resourceMetrics.instance || detailReport?.grafanaInstance || '-' }}</span>
+          <span>总线程：{{ detailReport?.totalThreads || '-' }}</span>
+          <span>压力机：{{ detailReport?.slaveCount || '-' }}</span>
+        </div>
+        <el-tabs v-model="detailTab">
+          <el-tab-pane label="概览" name="overview">
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="summary-label">平均 QPS</div>
+                <div class="summary-value">{{ pressureSummary.avgQps }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">平均 RT</div>
+                <div class="summary-value">{{ pressureSummary.avgRt }} ms</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">P99 RT</div>
+                <div class="summary-value">{{ pressureSummary.p99Rt }} ms</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">错误率</div>
+                <div class="summary-value">{{ pressureSummary.errorRate }}%</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">CPU 峰值</div>
+                <div class="summary-value">{{ resourceSummary.cpuPeak }}%</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">内存峰值</div>
+                <div class="summary-value">{{ resourceSummary.memoryPeak }}%</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Load 峰值</div>
+                <div class="summary-value">{{ resourceSummary.loadPeak }}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">GC 峰值</div>
+                <div class="summary-value">{{ resourceSummary.gcPeak }}</div>
+              </div>
+            </div>
+            <div class="transaction-section">
+              <div class="section-title">交易统计</div>
+              <el-table :data="transactionStats" stripe size="small" class="transaction-table" table-layout="fixed">
+                <el-table-column prop="name" label="事务名称" width="320" align="left" header-align="left" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="samples" label="总数" min-width="108" align="center" header-align="center"></el-table-column>
+                <el-table-column prop="success" label="成功数" min-width="108" align="center" header-align="center"></el-table-column>
+                <el-table-column prop="failed" label="失败数" min-width="108" align="center" header-align="center"></el-table-column>
+                <el-table-column label="成功率" min-width="112" align="center" header-align="center">
+                  <template #default="scope">{{ formatPercent(scope.row.successRate) }}</template>
+                </el-table-column>
+                <el-table-column label="TPS" min-width="108" align="center" header-align="center">
+                  <template #default="scope">{{ formatNumber(scope.row.tps, 2) }}</template>
+                </el-table-column>
+                <el-table-column label="平均RT" min-width="116" align="center" header-align="center">
+                  <template #default="scope">{{ formatNumber(scope.row.avgRt, 1) }} ms</template>
+                </el-table-column>
+                <el-table-column label="最大RT" min-width="116" align="center" header-align="center">
+                  <template #default="scope">{{ formatNumber(scope.row.maxRt, 1) }} ms</template>
+                </el-table-column>
+                <el-table-column label="最小RT" min-width="116" align="center" header-align="center">
+                  <template #default="scope">{{ formatNumber(scope.row.minRt, 1) }} ms</template>
+                </el-table-column>
+                <el-table-column label="交易占比" min-width="116" align="center" header-align="center">
+                  <template #default="scope">{{ formatPercent(scope.row.ratio) }}</template>
+                </el-table-column>
+                <template #empty><el-empty description="任务完成后生成交易统计" /></template>
+              </el-table>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="压测曲线" name="pressure">
+            <el-empty v-if="pressureMetrics.length === 0" description="暂无压测指标快照，稍后刷新或查看 Grafana" />
+            <JmeterMetricsChart v-else :data="pressureMetrics" />
+          </el-tab-pane>
+          <el-tab-pane label="交易曲线" name="transaction">
+            <div class="transaction-chart-toolbar">
+              <span>性能趋势图</span>
+              <span>窗口：{{ transactionTrend.window }}s</span>
+            </div>
+            <el-empty v-if="!hasTransactionTrend" description="任务完成后生成交易曲线" />
+            <TransactionTrendCharts v-else :data="transactionTrend" />
+          </el-tab-pane>
+          <el-tab-pane label="资源曲线" name="resource">
+            <div v-loading="resourceLoading">
+              <div class="resource-targets" v-if="resourceTargets.length > 0">
+                <button
+                  v-for="target in resourceTargets"
+                  :key="target.instance"
+                  type="button"
+                  class="resource-target"
+                  :class="{ active: target.instance === selectedResourceInstance }"
+                  @click="handleSelectResourceTarget(target)"
+                >
+                  <span class="resource-target-role">{{ target.role || '相关服务' }}</span>
+                  <span class="resource-target-name">{{ target.name || target.service || target.instance }}</span>
+                  <span class="resource-target-instance">{{ target.instance }}</span>
+                </button>
+              </div>
+              <el-alert
+                v-if="resourceError"
+                :title="resourceError"
+                type="warning"
+                show-icon
+                :closable="false"
+                class="resource-alert"
+              />
+              <div class="resource-range" v-if="resourceMetrics.fromMs && resourceMetrics.toMs">
+                时间范围：{{ formatTime(resourceMetrics.fromMs) }} ~ {{ formatTime(resourceMetrics.toMs) }}
+                <span>步长：{{ resourceMetrics.step }}s</span>
+              </div>
+              <el-empty v-if="!resourceLoading && !resourceError && !hasResourceSeries" description="暂无 Prometheus 资源数据" />
+              <ResourceMetricsChart v-else-if="hasResourceSeries" :series="resourceMetrics.series" />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -138,9 +262,12 @@
 import {ref, reactive, computed, onActivated, watch} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
-import { Download, Search, Delete, Edit, Refresh, Top, TrendCharts, Box } from '@element-plus/icons-vue';
-import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact} from "../api/report";
+import { Download, Search, Delete, Edit, Refresh, Top, TrendCharts, Box, DataAnalysis } from '@element-plus/icons-vue';
+import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact, getMetrics, getResourceMetrics, getResourceTargets, getTransactionStats, getTransactionTrend} from "../api/report";
 import JmeterCompareChart from '../components/JmeterCompareChart.vue';
+import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
+import ResourceMetricsChart from '../components/ResourceMetricsChart.vue';
+import TransactionTrendCharts from '../components/TransactionTrendCharts.vue';
 import {checkToLogin, handleTestCaseClick} from "../common/push";
 import {useRoute} from "vue-router";
 import router from "../router";
@@ -171,6 +298,67 @@ interface ArtifactItem {
   name: string;
   size: number;
   modifyTime: string;
+}
+
+interface MetricsItem {
+  timestamp: string;
+  qps: number;
+  avgRt: number;
+  p95Rt: number;
+  p99Rt: number;
+  errorRate: number;
+  threads: number;
+}
+
+interface TransactionStatsItem {
+  name: string;
+  samples: number;
+  success: number;
+  failed: number;
+  successRate: number;
+  tps: number;
+  avgRt: number;
+  maxRt: number;
+  minRt: number;
+  ratio: number;
+}
+
+interface TrendPoint {
+  timestamp: string;
+  value: number;
+}
+
+interface TransactionTrendData {
+  reportId: number;
+  window: number;
+  timestamps: string[];
+  transactions: string[];
+  totalTps: TrendPoint[];
+  transactionTps: Record<string, TrendPoint[]>;
+  avgRt: Record<string, TrendPoint[]>;
+  activeThreads: Record<string, TrendPoint[]>;
+}
+
+interface ResourceMetricPoint {
+  timestamp: string;
+  timestampMs: number;
+  value: number | null;
+}
+
+interface ResourceMetricsData {
+  reportId: number;
+  instance: string;
+  fromMs: number;
+  toMs: number;
+  step: number;
+  series: Record<string, ResourceMetricPoint[]>;
+}
+
+interface ResourceTarget {
+  name: string;
+  role: string;
+  service: string;
+  instance: string;
 }
 
 const route = useRoute();
@@ -327,6 +515,180 @@ const handleDownloadArtifact = async (name: string) => {
   }
 };
 
+// 报告详情：平台内压测曲线 + Prometheus 资源曲线
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const detailTab = ref('overview');
+const detailReport = ref<ReportItem | null>(null);
+const pressureMetrics = ref<MetricsItem[]>([]);
+const transactionStats = ref<TransactionStatsItem[]>([]);
+const transactionTrend = ref<TransactionTrendData>({
+  reportId: 0,
+  window: 60,
+  timestamps: [],
+  transactions: [],
+  totalTps: [],
+  transactionTps: {},
+  avgRt: {},
+  activeThreads: {}
+});
+const resourceError = ref('');
+const resourceLoading = ref(false);
+const resourceTargets = ref<ResourceTarget[]>([]);
+const selectedResourceInstance = ref('');
+const resourceMetrics = ref<ResourceMetricsData>({
+  reportId: 0,
+  instance: '',
+  fromMs: 0,
+  toMs: 0,
+  step: 30,
+  series: {}
+});
+
+const detailTitle = computed(() => {
+  if (!detailReport.value) return '报告详情';
+  return `报告详情：${detailReport.value.name || '#' + detailReport.value.id}`;
+});
+
+const avg = (items: number[]) => {
+  const values = items.filter((item) => Number.isFinite(item));
+  if (values.length === 0) return 0;
+  return values.reduce((sum, item) => sum + item, 0) / values.length;
+};
+
+const max = (items: Array<number | null | undefined>) => {
+  const values = items.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
+  if (values.length === 0) return 0;
+  return Math.max(...values);
+};
+
+const pressureSummary = computed(() => ({
+  avgQps: avg(pressureMetrics.value.map((item) => item.qps)).toFixed(1),
+  avgRt: avg(pressureMetrics.value.map((item) => item.avgRt)).toFixed(1),
+  p99Rt: max(pressureMetrics.value.map((item) => item.p99Rt)).toFixed(1),
+  errorRate: avg(pressureMetrics.value.map((item) => item.errorRate)).toFixed(2),
+}));
+
+const resourceSummary = computed(() => {
+  const series = resourceMetrics.value.series || {};
+  return {
+    cpuPeak: max((series.cpu || []).map((item) => item.value)).toFixed(1),
+    memoryPeak: max((series.memory || []).map((item) => item.value)).toFixed(1),
+    loadPeak: max((series.load || []).map((item) => item.value)).toFixed(2),
+    gcPeak: max((series.gc || []).map((item) => item.value)).toFixed(4),
+  };
+});
+
+const hasResourceSeries = computed(() => {
+  const series = resourceMetrics.value.series || {};
+  return Object.values(series).some((items) => Array.isArray(items) && items.length > 0);
+});
+
+const hasTransactionTrend = computed(() => {
+  const trend = transactionTrend.value;
+  return (trend.totalTps || []).length > 0
+    || Object.values(trend.transactionTps || {}).some((items) => Array.isArray(items) && items.length > 0)
+    || Object.values(trend.avgRt || {}).some((items) => Array.isArray(items) && items.length > 0)
+    || Object.values(trend.activeThreads || {}).some((items) => Array.isArray(items) && items.length > 0);
+});
+
+const formatTime = (timestampMs: number) => {
+  if (!timestampMs) return '-';
+  return new Date(timestampMs).toLocaleString();
+};
+
+const formatNumber = (value: number, digits = 2) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '-';
+  return num.toFixed(digits);
+};
+
+const formatPercent = (value: number) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '-';
+  return `${num.toFixed(2)}%`;
+};
+
+const resetResourceMetrics = (reportId = 0) => {
+  resourceMetrics.value = { reportId, instance: '', fromMs: 0, toMs: 0, step: 30, series: {} };
+};
+
+const resetTransactionTrend = (reportId = 0) => {
+  transactionTrend.value = {
+    reportId,
+    window: 60,
+    timestamps: [],
+    transactions: [],
+    totalTps: [],
+    transactionTps: {},
+    avgRt: {},
+    activeThreads: {},
+  };
+};
+
+const loadResourceMetrics = async (reportId: number, instance?: string) => {
+  resourceLoading.value = true;
+  resourceError.value = '';
+  resetResourceMetrics(reportId);
+  try {
+    const res = await getResourceMetrics(reportId, undefined, instance);
+    if (res.data.code === 0) {
+      resourceMetrics.value = res.data.data || resourceMetrics.value;
+    } else {
+      resourceError.value = res.data.message || '资源曲线查询失败';
+    }
+  } catch (e) {
+    resourceError.value = '资源曲线查询失败';
+  } finally {
+    resourceLoading.value = false;
+  }
+};
+
+const handleSelectResourceTarget = async (target: ResourceTarget) => {
+  if (!detailReport.value || target.instance === selectedResourceInstance.value) return;
+  selectedResourceInstance.value = target.instance;
+  await loadResourceMetrics(detailReport.value.id, target.instance);
+};
+
+const openReportDetail = async (row: ReportItem) => {
+  detailReport.value = row;
+  detailVisible.value = true;
+  detailTab.value = 'overview';
+  detailLoading.value = true;
+  resourceError.value = '';
+  pressureMetrics.value = [];
+  transactionStats.value = [];
+  resetTransactionTrend(row.id);
+  resourceTargets.value = [];
+  selectedResourceInstance.value = '';
+  resetResourceMetrics(row.id);
+  try {
+    const [pressureRes, targetRes, transactionRes, transactionTrendRes] = await Promise.allSettled([
+      getMetrics(row.id, 5),
+      getResourceTargets(row.id),
+      getTransactionStats(row.id),
+      getTransactionTrend(row.id, 60)
+    ]);
+    if (pressureRes.status === 'fulfilled' && pressureRes.value.data.code === 0) {
+      pressureMetrics.value = pressureRes.value.data.data || [];
+    }
+    if (targetRes.status === 'fulfilled' && targetRes.value.data.code === 0) {
+      resourceTargets.value = targetRes.value.data.data || [];
+    }
+    if (transactionRes.status === 'fulfilled' && transactionRes.value.data.code === 0) {
+      transactionStats.value = transactionRes.value.data.data || [];
+    }
+    if (transactionTrendRes.status === 'fulfilled' && transactionTrendRes.value.data.code === 0) {
+      transactionTrend.value = transactionTrendRes.value.data.data || transactionTrend.value;
+    }
+  } finally {
+    detailLoading.value = false;
+  }
+  const firstTarget = resourceTargets.value.find((target) => !!target.instance);
+  selectedResourceInstance.value = firstTarget?.instance || '';
+  await loadResourceMetrics(row.id, selectedResourceInstance.value || undefined);
+};
+
 // 查看日志
 const jmxLog = ref('');
 const handleJMeterLog = async (id: number) => {
@@ -424,5 +786,168 @@ const confirmCompare = async (targetId: number) => {
   justify-content: center;
   margin-left: 0;
   padding: 0;
+}
+
+.report-detail {
+  min-height: 520px;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+}
+
+.detail-meta span {
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--color-bg-elevated);
+}
+
+.summary-label {
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.summary-value {
+  color: var(--color-fg-primary);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.transaction-section {
+  margin-top: 18px;
+}
+
+.section-title {
+  margin-bottom: 10px;
+  color: var(--color-fg-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.transaction-table {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.transaction-table :deep(.el-table__header th) {
+  background: var(--color-bg-muted);
+  color: var(--color-fg-secondary);
+  font-weight: 700;
+}
+
+.transaction-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+}
+
+.resource-alert {
+  margin-bottom: 12px;
+}
+
+.resource-targets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.resource-target {
+  min-width: 0;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.resource-target:hover,
+.resource-target.active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, .12);
+}
+
+.resource-target.active {
+  background: rgba(64, 158, 255, .08);
+}
+
+.resource-target-role,
+.resource-target-name,
+.resource-target-instance {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-target-role {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.resource-target-name {
+  color: var(--color-fg-primary);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.resource-target-instance {
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
+}
+
+.resource-range {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resource-targets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .resource-targets {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

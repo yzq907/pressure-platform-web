@@ -75,8 +75,8 @@
                 <el-input v-model="item.rampTime" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
               </label>
               <label>
-                <span>运行</span>
-                <el-input v-model="item.duration" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
+                <span>Pacing(ms)</span>
+                <el-input v-model="item.pacingMs" size="small" :disabled="!item.enabled" placeholder="0"></el-input>
               </label>
             </div>
           </div>
@@ -117,6 +117,7 @@ const typeText = (type: string) => {
   };
   return map[type] || type || 'Thread Group';
 };
+
 </script>
 
 <style scoped>
@@ -203,7 +204,7 @@ const typeText = (type: string) => {
   align-items: center;
   border-bottom: 1px solid #ebeef5;
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) 126px minmax(280px, 1.5fr);
+  grid-template-columns: minmax(180px, 1.2fr) 126px minmax(420px, 2fr);
   gap: 12px;
   min-width: 0;
   padding: 10px 12px;
@@ -288,6 +289,7 @@ const typeText = (type: string) => {
   .thread-group-row {
     grid-template-columns: minmax(0, 1fr);
   }
+
 }
 
 @media (max-width: 520px) {

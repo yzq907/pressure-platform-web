@@ -1522,7 +1522,8 @@ const openRunDialog = async (row: any) => {
         mode: 'global',
         numThreads: runForm.numThreads,
         rampTime: runForm.rampTime,
-        duration: runForm.duration
+        globalNumThreads: runForm.numThreads,
+        pacingMs: '0'
       }));
     }
   } catch { /* ignore */ }
@@ -1534,6 +1535,13 @@ const confirmRun = async () => {
   if (maxSlaveCount.value < 1 && runForm.region && runForm.queuePolicy !== 'queue_when_no_slave') {
     ElMessage.error('所选区域暂无可用压力机，无法执行'); return;
   }
+  const invalidPacing = runForm.threadGroupOverrides.find((item) => {
+    const pacing = Number(item.pacingMs);
+    return item.enabled && (!Number.isFinite(pacing) || pacing < 0);
+  });
+  if (invalidPacing) {
+    ElMessage.error(`Pacing必须大于等于0：${invalidPacing.name || ''}`); return;
+  }
   runSubmitting.value = true;
   try {
     const res = await startTestCase(runForm.id, {
@@ -1544,7 +1552,7 @@ const confirmRun = async () => {
       region: runForm.region,
       queuePolicy: runForm.queuePolicy,
       threadGroupOverrides: runForm.threadGroupOverrides
-        .filter((item) => item.enabled !== item.originalEnabled || (item.mode && item.mode !== 'global'))
+        .filter((item) => item.enabled !== item.originalEnabled || (item.mode && item.mode !== 'global') || Number(item.pacingMs || 0) > 0)
         .map((item) => ({
           key: item.key,
           name: item.name,
@@ -1552,7 +1560,7 @@ const confirmRun = async () => {
           mode: item.mode,
           numThreads: item.numThreads,
           rampTime: item.rampTime,
-          duration: item.duration
+          pacingMs: Number(item.pacingMs || 0)
         }))
     });
     const code = res.data.code;

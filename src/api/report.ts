@@ -48,6 +48,51 @@ export const getMetrics = (reportId: number, window: number = 5) => {
     });
 }
 
+export const getTransactionStats = (reportId: number) => {
+    return request({
+        url: '/report/transactionStats/' + reportId,
+        method: 'get'
+    });
+}
+
+export const getTransactionMetrics = (reportId: number, window: number = 60) => {
+    return request({
+        url: '/report/transactionMetrics/' + reportId,
+        method: 'get',
+        params: { window }
+    });
+}
+
+export const getTransactionTrend = (reportId: number, window: number = 60) => {
+    return request({
+        url: '/report/transactionTrend/' + reportId,
+        method: 'get',
+        params: { window }
+    });
+}
+
+export const getResourceTargets = (reportId: number) => {
+    return request({
+        url: '/report/resourceTargets/' + reportId,
+        method: 'get'
+    });
+}
+
+export const getResourceMetrics = (reportId: number, step?: number, instance?: string) => {
+    const params: Record<string, any> = {};
+    if (step !== undefined && step !== null) {
+        params.step = step;
+    }
+    if (instance) {
+        params.instance = instance;
+    }
+    return request({
+        url: '/report/resourceMetrics/' + reportId,
+        method: 'get',
+        params
+    });
+}
+
 export const downloadReport = async (id: number) => {
     try {
         const response: AxiosResponse<Blob> = await request({

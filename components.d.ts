@@ -7,6 +7,7 @@ export {}
 
 declare module '@vue/runtime-core' {
   export interface GlobalComponents {
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
@@ -47,6 +48,7 @@ declare module '@vue/runtime-core' {
     HistoryReportDrawer: typeof import('./src/components/testcase/HistoryReportDrawer.vue')['default']
     JmeterCompareChart: typeof import('./src/components/JmeterCompareChart.vue')['default']
     JmeterMetricsChart: typeof import('./src/components/JmeterMetricsChart.vue')['default']
+    ResourceMetricsChart: typeof import('./src/components/ResourceMetricsChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     RunParamDialog: typeof import('./src/components/testcase/RunParamDialog.vue')['default']
@@ -56,6 +58,7 @@ declare module '@vue/runtime-core' {
     TestcaseFormDialog: typeof import('./src/components/testcase/TestcaseFormDialog.vue')['default']
     TestcaseKpiStrip: typeof import('./src/components/testcase/TestcaseKpiStrip.vue')['default']
     TestcaseTable: typeof import('./src/components/testcase/TestcaseTable.vue')['default']
+    TransactionTrendCharts: typeof import('./src/components/TransactionTrendCharts.vue')['default']
     VirtualTextViewer: typeof import('./src/components/VirtualTextViewer.vue')['default']
   }
   export interface ComponentCustomProperties {

@@ -75,6 +75,13 @@ export const getRunThreadGroups = (id: number) => {
     });
 }
 
+export const getRunTransactions = (id: number) => {
+    return request({
+        url: '/testcase/runTransactions/' + id,
+        method: 'get'
+    });
+}
+
 export const stopTestCase = (id: number) => {
     return request({
         url: '/testcase/stop/' + id,
