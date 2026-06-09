@@ -41,47 +41,7 @@
         </el-form-item>
       </div>
 
-      <section v-if="form.threadGroupOverrides?.length" class="thread-group-panel">
-        <div class="thread-group-head">
-          <span>线程组配置</span>
-          <span>禁用的线程组也可在本次执行中启用</span>
-        </div>
-        <div class="thread-group-list">
-          <div
-              v-for="item in form.threadGroupOverrides"
-              :key="item.key || item.name"
-              class="thread-group-row"
-              :class="{ 'is-disabled': !item.enabled }"
-          >
-            <div class="thread-group-main">
-              <el-switch v-model="item.enabled" size="small"></el-switch>
-              <div class="thread-group-name">
-                <span :title="item.name">{{ item.name || '-' }}</span>
-                <small>{{ typeText(item.type) }}</small>
-              </div>
-            </div>
-            <el-select v-model="item.mode" size="small" :disabled="!item.enabled" class="thread-group-mode">
-              <el-option label="跟随全局" value="global"></el-option>
-              <el-option label="自定义" value="custom"></el-option>
-              <el-option label="固定原值" value="fixed"></el-option>
-            </el-select>
-            <div class="thread-group-inputs">
-              <label>
-                <span>并发</span>
-                <el-input v-model="item.numThreads" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
-              </label>
-              <label>
-                <span>启动</span>
-                <el-input v-model="item.rampTime" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
-              </label>
-              <label>
-                <span>Pacing(ms)</span>
-                <el-input v-model="item.pacingMs" size="small" :disabled="!item.enabled" placeholder="0"></el-input>
-              </label>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ThreadGroupRunConfig :items="form.threadGroupOverrides" />
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -95,9 +55,12 @@
 </template>
 
 <script setup lang="ts">
+import ThreadGroupRunConfig from './ThreadGroupRunConfig.vue';
+import type { RunParamForm } from '../../utils/threadGroupRunConfig';
+
 defineProps<{
   modelValue: boolean;
-  form: any;
+  form: RunParamForm;
   regionList: string[];
   maxSlaveCount: number;
   submitting?: boolean;
@@ -108,15 +71,6 @@ const emit = defineEmits<{
   (e: 'region-change'): void;
   (e: 'confirm'): void;
 }>();
-
-const typeText = (type: string) => {
-  const map: Record<string, string> = {
-    thread_group: 'Thread Group',
-    stepping_thread_group: 'Stepping',
-    concurrency_thread_group: 'Concurrency'
-  };
-  return map[type] || type || 'Thread Group';
-};
 
 </script>
 
@@ -167,107 +121,6 @@ const typeText = (type: string) => {
   color: #e6a23c;
 }
 
-.thread-group-panel {
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  margin-top: 4px;
-  overflow: hidden;
-}
-
-.thread-group-head {
-  align-items: center;
-  background: #f7f8fa;
-  border-bottom: 1px solid #e4e7ed;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-}
-
-.thread-group-head span:first-child {
-  color: #303133;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.thread-group-head span:last-child {
-  color: #909399;
-  font-size: 12px;
-}
-
-.thread-group-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.thread-group-row {
-  align-items: center;
-  border-bottom: 1px solid #ebeef5;
-  display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) 126px minmax(420px, 2fr);
-  gap: 12px;
-  min-width: 0;
-  padding: 10px 12px;
-}
-
-.thread-group-row:last-child {
-  border-bottom: 0;
-}
-
-.thread-group-row.is-disabled {
-  background: #fafafa;
-}
-
-.thread-group-main {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  min-width: 0;
-}
-
-.thread-group-name {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.thread-group-name span {
-  color: #303133;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thread-group-name small {
-  color: #909399;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.thread-group-mode {
-  width: 100%;
-}
-
-.thread-group-inputs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  min-width: 0;
-}
-
-.thread-group-inputs label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.thread-group-inputs span {
-  color: #909399;
-  font-size: 12px;
-  line-height: 14px;
-}
-
 .dialog-footer {
   display: inline-flex;
   gap: 8px;
@@ -286,15 +139,10 @@ const typeText = (type: string) => {
     grid-column: span 2;
   }
 
-  .thread-group-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
 }
 
 @media (max-width: 520px) {
-  .run-param-grid,
-  .thread-group-inputs {
+  .run-param-grid {
     grid-template-columns: 1fr;
   }
 
@@ -306,8 +154,7 @@ const typeText = (type: string) => {
     grid-column: span 1;
   }
 
-  .slave-count-control,
-  .thread-group-head {
+  .slave-count-control {
     align-items: flex-start;
     flex-direction: column;
   }

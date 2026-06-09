@@ -64,8 +64,7 @@ export const downloadAiGenerationArtifact = async (id: number, filename: string)
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         return { success: true };
-    } catch (error) {
-        console.error('Error downloading AI generation artifact:', error);
+    } catch {
         return { success: false };
     }
 };
@@ -87,8 +86,7 @@ export const downloadAiGenerationArtifactsZip = async (taskId: number, artifactI
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         return { success: true };
-    } catch (error) {
-        console.error('Error downloading AI generation artifacts:', error);
+    } catch {
         return { success: false };
     }
 };

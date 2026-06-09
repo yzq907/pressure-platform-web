@@ -116,7 +116,6 @@ export const downloadReport = async (id: number) => {
 
         return { success: true };
     } catch (error) {
-        console.error('Error downloading file:', error);
         return { success: false, error };
     }
 };
@@ -183,7 +182,6 @@ export const downloadArtifact = async (id: number, name: string) => {
 
         return { success: true };
     } catch (error) {
-        console.error('Error downloading artifact:', error);
         return { success: false, error };
     }
 };

@@ -52,9 +52,6 @@
                 <el-dropdown-item class="dropdown-button" @click="emit('schedule', scope.row)">
                   <span class="state-pill sp-success">定时压测</span>
                 </el-dropdown-item>
-                <el-dropdown-item class="dropdown-button" @click="emit('stop', scope.row.id)">
-                  <span class="state-pill sp-error">停止</span>
-                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -82,7 +79,6 @@ const emit = defineEmits<{
   (e: 'debug', id: number): void;
   (e: 'run', row: any): void;
   (e: 'schedule', row: any): void;
-  (e: 'stop', id: number): void;
   (e: 'delete', id: number): void;
   (e: 'sort-change', payload: { prop: string; order: 'ascending' | 'descending' | null }): void;
 }>();

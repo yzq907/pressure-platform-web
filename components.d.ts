@@ -58,6 +58,7 @@ declare module '@vue/runtime-core' {
     TestcaseFormDialog: typeof import('./src/components/testcase/TestcaseFormDialog.vue')['default']
     TestcaseKpiStrip: typeof import('./src/components/testcase/TestcaseKpiStrip.vue')['default']
     TestcaseTable: typeof import('./src/components/testcase/TestcaseTable.vue')['default']
+    ThreadGroupRunConfig: typeof import('./src/components/testcase/ThreadGroupRunConfig.vue')['default']
     TransactionTrendCharts: typeof import('./src/components/TransactionTrendCharts.vue')['default']
     VirtualTextViewer: typeof import('./src/components/VirtualTextViewer.vue')['default']
   }

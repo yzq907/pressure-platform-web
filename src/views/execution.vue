@@ -107,8 +107,8 @@
     </div>
 
     <!-- Schedule Edit Dialog -->
-    <el-dialog title="编辑定时任务" v-model="scheduleVisible" width="540px" destroy-on-close>
-      <el-form label-width="90px">
+    <el-dialog title="编辑定时任务" v-model="scheduleVisible" width="min(920px, calc(100vw - 32px))" destroy-on-close>
+      <el-form label-position="top" class="schedule-edit-form">
         <el-form-item label="执行方式">
           <el-radio-group v-model="scheduleForm.scheduleType">
             <el-radio-button label="once">仅执行一次</el-radio-button>
@@ -149,26 +149,31 @@
           </el-form-item>
         </template>
         <el-divider content-position="left">压测参数</el-divider>
-        <el-form-item label="并发数">
-          <el-input v-model="scheduleForm.runParam.numThreads" placeholder="并发线程数，如 100" />
-        </el-form-item>
-        <el-form-item label="启动时间">
-          <el-input v-model="scheduleForm.runParam.rampTime" placeholder="Ramp-Up 秒数，如 10" />
-        </el-form-item>
-        <el-form-item label="运行时间">
-          <el-input v-model="scheduleForm.runParam.duration" placeholder="持续时间 秒数，如 300" />
-        </el-form-item>
-        <el-form-item label="目标区域">
-          <el-select v-model="scheduleForm.runParam.region" placeholder="全部区域" @change="onScheduleRegionChange" style="width:100%">
-            <el-option key="" label="全部区域" value="" />
-            <el-option v-for="r in regionList" :key="r" :label="r" :value="r" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="压力机数">
-          <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1" />
-          <span class="form-hint" v-if="maxSlaveCount > 0">可用 {{ maxSlaveCount }} 台</span>
-          <span class="form-hint" v-else style="color: var(--color-error)">该区域暂无可用压力机</span>
-        </el-form-item>
+        <div class="schedule-param-grid">
+          <el-form-item label="并发数">
+            <el-input v-model="scheduleForm.runParam.numThreads" placeholder="并发线程数，如 100" />
+          </el-form-item>
+          <el-form-item label="启动时间">
+            <el-input v-model="scheduleForm.runParam.rampTime" placeholder="Ramp-Up 秒数，如 10" />
+          </el-form-item>
+          <el-form-item label="运行时间">
+            <el-input v-model="scheduleForm.runParam.duration" placeholder="持续时间 秒数，如 300" />
+          </el-form-item>
+          <el-form-item label="目标区域">
+            <el-select v-model="scheduleForm.runParam.region" placeholder="全部区域" @change="onScheduleRegionChange" style="width:100%">
+              <el-option key="" label="全部区域" value="" />
+              <el-option v-for="r in regionList" :key="r" :label="r" :value="r" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="压力机数" class="slave-count-item">
+            <div class="slave-count-control">
+              <el-input-number v-model="scheduleForm.runParam.slaveCount" :min="1" :max="maxSlaveCount || 1" :step="1" :disabled="maxSlaveCount < 1" />
+              <span class="form-hint" v-if="maxSlaveCount > 0">可用 {{ maxSlaveCount }} 台</span>
+              <span class="form-hint" v-else style="color: var(--color-error)">该区域暂无可用压力机</span>
+            </div>
+          </el-form-item>
+        </div>
+        <ThreadGroupRunConfig :items="scheduleForm.runParam.threadGroupOverrides" />
       </el-form>
       <template #footer>
         <el-button @click="scheduleVisible = false">取消</el-button>
@@ -233,10 +238,19 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh, Close, TrendCharts, VideoPlay, Edit, Delete, Tickets } from '@element-plus/icons-vue';
 import { getReportListAll, getMetrics } from '../api/report';
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
-import { cancelQueuedExecution, getExecutionQueue, stopExecution } from '../api/testcase';
+import ThreadGroupRunConfig from '../components/testcase/ThreadGroupRunConfig.vue';
+import { cancelQueuedExecution, getExecutionQueue, getRunThreadGroups, stopExecution } from '../api/testcase';
 import { getTestCaseList } from '../api/testcase';
 import { listScheduledTasks, listScheduledTaskLogs, triggerScheduledTask, updateScheduledTask, deleteScheduledTask } from '../api/scheduledTask';
 import { getRegions, getEnableSlaveCount } from '../api/node';
+import {
+  buildThreadGroupOverridePayload,
+  createThreadGroupOverrideRows,
+  findInvalidThreadGroupPacing,
+  type ScheduleData,
+  type ScheduleTaskForm,
+  type ThreadGroupRunConfigItem
+} from '../utils/threadGroupRunConfig';
 import { checkToLogin } from '../common/push';
 
 interface TableRow {
@@ -494,31 +508,47 @@ const editingScheduleId = ref<number | null>(null);
 const maxSlaveCount = ref(1);
 const regionList = ref<string[]>([]);
 
-const scheduleForm = reactive({
-  scheduleType: 'once' as string,
-  onceDateTime: '' as string,
-  dailyTime: '' as string,
-  weeklyTime: '' as string,
+const scheduleForm = reactive<ScheduleTaskForm>({
+  scheduleType: 'once',
+  onceDateTime: '',
+  dailyTime: '',
+  weeklyTime: '',
   daysOfWeek: [] as number[],
-  monthlyTime: '' as string,
-  dayOfMonth: 1 as number,
+  monthlyTime: '',
+  dayOfMonth: 1,
   runParam: {
     numThreads: '10',
     rampTime: '0',
     duration: '60',
     slaveCount: 1,
-    region: ''
+    region: '',
+    threadGroupOverrides: []
   }
 });
 
+interface SavedScheduleRunParam {
+  numThreads?: string;
+  rampTime?: string;
+  duration?: string;
+  slaveCount?: number;
+  region?: string;
+  threadGroupOverrides?: Partial<ThreadGroupRunConfigItem>[];
+}
+
+interface SavedScheduleData {
+  time?: string;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+}
+
 const openScheduleEdit = async (row: TableRow) => {
   editingScheduleId.value = row.scheduleId!;
-  let sd: any = {};
+  let sd: SavedScheduleData = {};
   try { sd = JSON.parse(row._scheduleData || '{}'); } catch { /* ignore */ }
-  let rp: any = {};
+  let rp: SavedScheduleRunParam = {};
   try { rp = JSON.parse(row._runParam || '{}'); } catch { /* ignore */ }
 
-  scheduleForm.scheduleType = row.scheduleType || 'once';
+  scheduleForm.scheduleType = row.scheduleType === 'daily' || row.scheduleType === 'weekly' || row.scheduleType === 'monthly' ? row.scheduleType : 'once';
   scheduleForm.daysOfWeek = [];
   scheduleForm.dayOfMonth = 1;
   scheduleForm.onceDateTime = '';
@@ -543,15 +573,42 @@ const openScheduleEdit = async (row: TableRow) => {
   scheduleForm.runParam.duration = rp.duration || '60';
   scheduleForm.runParam.slaveCount = rp.slaveCount || 1;
   scheduleForm.runParam.region = rp.region || '';
+  scheduleForm.runParam.threadGroupOverrides = [];
 
   try {
-    const [regionRes, countRes] = await Promise.all([
+    const [regionRes, countRes, threadGroupRes] = await Promise.all([
       getRegions(),
-      getEnableSlaveCount(rp.region || undefined)
+      getEnableSlaveCount(rp.region || undefined),
+      getRunThreadGroups(row.testCaseId)
     ]);
     if (regionRes.data.code === 0) regionList.value = regionRes.data.data;
     if (countRes.data.code === 0) maxSlaveCount.value = countRes.data.data || 0;
-  } catch { /* ignore */ }
+    if (threadGroupRes.data.code === 0) {
+      scheduleForm.runParam.threadGroupOverrides = createThreadGroupOverrideRows(
+        threadGroupRes.data.data || [],
+        scheduleForm.runParam.numThreads,
+        scheduleForm.runParam.rampTime,
+        rp.threadGroupOverrides || [],
+        { includeSavedWhenMissing: true }
+      );
+    } else {
+      scheduleForm.runParam.threadGroupOverrides = createThreadGroupOverrideRows(
+        [],
+        scheduleForm.runParam.numThreads,
+        scheduleForm.runParam.rampTime,
+        rp.threadGroupOverrides || [],
+        { includeSavedWhenMissing: true }
+      );
+    }
+  } catch {
+    scheduleForm.runParam.threadGroupOverrides = createThreadGroupOverrideRows(
+      [],
+      scheduleForm.runParam.numThreads,
+      scheduleForm.runParam.rampTime,
+      rp.threadGroupOverrides || [],
+      { includeSavedWhenMissing: true }
+    );
+  }
 
   // 如果当前可用数小于保存的值，则降到当前可用数
   if (scheduleForm.runParam.slaveCount > maxSlaveCount.value) {
@@ -565,7 +622,11 @@ const confirmScheduleEdit = async () => {
   if (maxSlaveCount.value < 1 && scheduleForm.runParam.region) {
     ElMessage.error('所选区域暂无可用压力机，无法保存'); return;
   }
-  let scheduleData: any = {};
+  const invalidPacing = findInvalidThreadGroupPacing(scheduleForm.runParam.threadGroupOverrides);
+  if (invalidPacing) {
+    ElMessage.error(`Pacing必须大于等于0：${invalidPacing.name || ''}`); return;
+  }
+  let scheduleData: ScheduleData | null = null;
   if (scheduleForm.scheduleType === 'once') {
     if (!scheduleForm.onceDateTime) { ElMessage.error('请选择执行时间'); return; }
     scheduleData = { time: scheduleForm.onceDateTime };
@@ -589,7 +650,8 @@ const confirmScheduleEdit = async () => {
       rampTime: scheduleForm.runParam.rampTime,
       duration: scheduleForm.runParam.duration,
       slaveCount: scheduleForm.runParam.slaveCount,
-      region: scheduleForm.runParam.region
+      region: scheduleForm.runParam.region,
+      threadGroupOverrides: buildThreadGroupOverridePayload(scheduleForm.runParam.threadGroupOverrides)
     }
   };
   const res = await updateScheduledTask(editingScheduleId.value!, body);
@@ -692,6 +754,29 @@ watch(chartDialogVisible, (visible) => {
   font-size: 12px;
   color: var(--color-fg-tertiary);
 }
+.schedule-edit-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+.schedule-edit-form :deep(.el-form-item__label) {
+  color: #606266;
+  font-weight: 500;
+  line-height: 18px;
+  padding-bottom: 6px;
+}
+.schedule-param-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px 16px;
+}
+.slave-count-item {
+  grid-column: span 2;
+}
+.slave-count-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
 .row-message {
   color: var(--color-fg-tertiary);
   font-size: 12px;
@@ -713,5 +798,26 @@ watch(chartDialogVisible, (visible) => {
 .muted-text {
   color: var(--color-fg-tertiary);
   font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .schedule-param-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .schedule-param-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .slave-count-item {
+    grid-column: span 1;
+  }
+
+  .slave-count-control {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

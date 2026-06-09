@@ -45,7 +45,6 @@ export const downloadUploadFile = async (id: number, fileName: string) => {
 
         return {success: true};
     } catch (error) {
-        console.error('Error downloading upload file:', error);
         return {success: false, error};
     }
 };

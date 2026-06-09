@@ -50,7 +50,6 @@ export const downloadJar = async (id: number, jarName: string) => {
 
         return {success: true};
     } catch (error) {
-        console.error('Error downloading file:', error);
         return {success: false, error};
     }
 };
