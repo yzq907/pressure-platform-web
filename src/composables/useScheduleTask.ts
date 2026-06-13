@@ -32,6 +32,7 @@ export const useScheduleTask = ({ maxSlaveCount, regionList, refresh }: UseSched
     monthlyTime: '',
     dayOfMonth: 1,
     runParam: {
+      taskName: '',
       numThreads: '10',
       rampTime: '0',
       duration: '60',
@@ -61,6 +62,7 @@ export const useScheduleTask = ({ maxSlaveCount, regionList, refresh }: UseSched
     scheduleForm.daysOfWeek = [];
     scheduleForm.monthlyTime = '';
     scheduleForm.dayOfMonth = 1;
+    scheduleForm.runParam.taskName = '';
     scheduleForm.runParam.numThreads = row.numThreads || '10';
     scheduleForm.runParam.rampTime = row.rampTime || '0';
     scheduleForm.runParam.duration = row.duration || '60';
@@ -114,6 +116,7 @@ export const useScheduleTask = ({ maxSlaveCount, regionList, refresh }: UseSched
       scheduleType: scheduleForm.scheduleType,
       scheduleData,
       runParam: {
+        taskName: scheduleForm.runParam.taskName,
         numThreads: scheduleForm.runParam.numThreads,
         rampTime: scheduleForm.runParam.rampTime,
         duration: scheduleForm.runParam.duration,

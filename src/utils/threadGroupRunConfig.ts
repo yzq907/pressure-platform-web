@@ -37,6 +37,7 @@ export interface TestcaseRunSource {
 }
 
 export interface BaseRunParamForm {
+  taskName: string;
   numThreads: string;
   rampTime: string;
   duration: string;

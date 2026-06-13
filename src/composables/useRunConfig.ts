@@ -21,6 +21,7 @@ export const useRunConfig = ({ refresh }: UseRunConfigOptions) => {
   const regionList = ref<string[]>([]);
   const runForm = reactive<RunParamForm>({
     id: null,
+    taskName: '',
     numThreads: '10',
     rampTime: '0',
     duration: '60',
@@ -47,6 +48,7 @@ export const useRunConfig = ({ refresh }: UseRunConfigOptions) => {
   const openRunDialog = async (row: TestcaseRunSource) => {
     if (runSubmitting.value) return;
     runForm.id = row.id;
+    runForm.taskName = '';
     runForm.numThreads = row.numThreads || '10';
     runForm.rampTime = row.rampTime || '0';
     runForm.duration = row.duration || '60';
@@ -85,6 +87,7 @@ export const useRunConfig = ({ refresh }: UseRunConfigOptions) => {
     runSubmitting.value = true;
     try {
       const res = await startTestCase(runForm.id, {
+        taskName: runForm.taskName,
         numThreads: runForm.numThreads,
         rampTime: runForm.rampTime,
         duration: runForm.duration,

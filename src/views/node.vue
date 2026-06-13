@@ -28,7 +28,8 @@
         </el-table-column>
         <el-table-column prop="healthStatus" label="健康" align="center" width="90">
           <template #default="scope">
-            <span v-if="scope.row.healthStatus === 1" class="state-pill sp-success"><span class="sp-dot"></span>在线</span>
+            <span v-if="scope.row.status !== 1" class="state-pill sp-idle"><span class="sp-dot"></span>未检测</span>
+            <span v-else-if="scope.row.healthStatus === 1" class="state-pill sp-success"><span class="sp-dot"></span>在线</span>
             <span v-else class="state-pill sp-error"><span class="sp-dot"></span>离线</span>
           </template>
         </el-table-column>

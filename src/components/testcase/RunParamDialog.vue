@@ -11,6 +11,9 @@
   >
     <el-form label-position="top" class="run-param-form">
       <div class="run-param-grid">
+        <el-form-item label="任务名称" class="task-name-item">
+          <el-input v-model="form.taskName" maxlength="255" show-word-limit placeholder="例如：登录接口-100并发-基线"></el-input>
+        </el-form-item>
         <el-form-item label="并发数">
           <el-input v-model="form.numThreads" placeholder="如 100"></el-input>
         </el-form-item>
@@ -92,6 +95,10 @@ const emit = defineEmits<{
   gap: 2px 16px;
 }
 
+.task-name-item {
+  grid-column: span 3;
+}
+
 .slave-count-item {
   grid-column: span 2;
 }
@@ -139,6 +146,10 @@ const emit = defineEmits<{
     grid-column: span 2;
   }
 
+  .task-name-item {
+    grid-column: span 2;
+  }
+
 }
 
 @media (max-width: 520px) {
@@ -151,6 +162,10 @@ const emit = defineEmits<{
   }
 
   .queue-policy-item {
+    grid-column: span 1;
+  }
+
+  .task-name-item {
     grid-column: span 1;
   }
 

@@ -517,6 +517,7 @@ const scheduleForm = reactive<ScheduleTaskForm>({
   monthlyTime: '',
   dayOfMonth: 1,
   runParam: {
+    taskName: '',
     numThreads: '10',
     rampTime: '0',
     duration: '60',
@@ -527,6 +528,7 @@ const scheduleForm = reactive<ScheduleTaskForm>({
 });
 
 interface SavedScheduleRunParam {
+  taskName?: string;
   numThreads?: string;
   rampTime?: string;
   duration?: string;
@@ -568,6 +570,7 @@ const openScheduleEdit = async (row: TableRow) => {
     scheduleForm.dayOfMonth = sd.dayOfMonth || 1;
   }
 
+  scheduleForm.runParam.taskName = rp.taskName || '';
   scheduleForm.runParam.numThreads = rp.numThreads || '10';
   scheduleForm.runParam.rampTime = rp.rampTime || '0';
   scheduleForm.runParam.duration = rp.duration || '60';
@@ -646,6 +649,7 @@ const confirmScheduleEdit = async () => {
     scheduleType: scheduleForm.scheduleType,
     scheduleData,
     runParam: {
+      taskName: scheduleForm.runParam.taskName,
       numThreads: scheduleForm.runParam.numThreads,
       rampTime: scheduleForm.runParam.rampTime,
       duration: scheduleForm.runParam.duration,

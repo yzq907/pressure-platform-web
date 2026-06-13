@@ -2,7 +2,7 @@
   <div>
     <div class="container">
       <div class="handle-box">
-        <el-input v-model="query.name" placeholder="报告名称" class="handle-input mr10"></el-input>
+        <el-input v-model="query.name" placeholder="任务/报告名称" class="handle-input mr10"></el-input>
         <el-input v-model="query.testCaseId" placeholder="用例" class="handle-input mr10"></el-input>
         <el-select v-model="query.execType" placeholder="类型" class="handle-select mr10" style="width:120px" clearable>
           <el-option label="调试" :value="1"></el-option>
@@ -16,7 +16,7 @@
 
       <el-table :data="reportData" stripe class="table" ref="multipleTable" v-loading="loading">
         <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
-        <el-table-column prop="name" label="名称" align="center"></el-table-column>
+        <el-table-column prop="name" label="任务名称" align="center"></el-table-column>
         <el-table-column prop="description" label="描述" align="center"></el-table-column>
         <el-table-column prop="testCaseId" label="用例" align="center">
           <template #default="scope">
@@ -87,7 +87,7 @@
     <el-dialog title="选择对比报告" v-model="compareSelectVisible" width="700px" destroy-on-close>
       <el-table :data="compareCandidates" stripe size="small">
         <el-table-column prop="id" label="编号" width="80" align="center"></el-table-column>
-        <el-table-column prop="name" label="名称" align="center"></el-table-column>
+        <el-table-column prop="name" label="任务名称" align="center"></el-table-column>
         <el-table-column prop="execType" label="类型" align="center" width="90">
           <template #default="scope">
             <span v-if="scope.row.execType === 1" class="state-pill sp-debug">调试</span>
