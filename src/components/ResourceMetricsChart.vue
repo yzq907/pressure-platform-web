@@ -52,6 +52,7 @@ interface ResourceMetricSeries {
   networkOut?: ResourceMetricPoint[];
   diskRead?: ResourceMetricPoint[];
   diskWrite?: ResourceMetricPoint[];
+  diskUtil?: ResourceMetricPoint[];
   gc?: ResourceMetricPoint[];
 }
 
@@ -77,6 +78,13 @@ const valuesByLabel = (items: ResourceMetricPoint[] = []) => {
   return labels.value.map((label) => valueMap.get(label) ?? null);
 };
 
+const convertValues = (values: Array<number | null>, convert: (value: number) => number) => {
+  return values.map((value) => value === null ? null : Number(convert(value).toFixed(2)));
+};
+
+const bytesPerSecondToMegabits = (value: number) => value * 8 / 1000 / 1000;
+const bytesPerSecondToMegabytes = (value: number) => value / 1000 / 1000;
+
 const baseOption = (legend: string[], series: any[], yName = '') => ({
   tooltip: { trigger: 'axis' },
   legend: { data: legend, top: 0 },
@@ -97,6 +105,11 @@ const line = (name: string, data: Array<number | null>, color: string) => ({
   itemStyle: { color },
 });
 
+const lineWithAxis = (name: string, data: Array<number | null>, color: string, yAxisIndex: number) => ({
+  ...line(name, data, color),
+  yAxisIndex,
+});
+
 const cpuLoadOption = computed(() => baseOption(
   ['CPU %', 'Load1'],
   [
@@ -111,22 +124,30 @@ const memoryOption = computed(() => baseOption(
 ));
 
 const networkOption = computed(() => baseOption(
-  ['In bytes/s', 'Out bytes/s'],
+  ['In Mb/s', 'Out Mb/s'],
   [
-    line('In bytes/s', valuesByLabel(props.series.networkIn), '#3B82F6'),
-    line('Out bytes/s', valuesByLabel(props.series.networkOut), '#8B5CF6'),
+    line('In Mb/s', convertValues(valuesByLabel(props.series.networkIn), bytesPerSecondToMegabits), '#3B82F6'),
+    line('Out Mb/s', convertValues(valuesByLabel(props.series.networkOut), bytesPerSecondToMegabits), '#8B5CF6'),
   ],
-  'bytes/s',
+  'Mb/s',
 ));
 
-const diskOption = computed(() => baseOption(
-  ['Read bytes/s', 'Write bytes/s'],
-  [
-    line('Read bytes/s', valuesByLabel(props.series.diskRead), '#0EA5E9'),
-    line('Write bytes/s', valuesByLabel(props.series.diskWrite), '#EF4444'),
+const diskOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  legend: { data: ['Read MB/s', 'Write MB/s', 'I/O Util %'], top: 0 },
+  grid: { left: '4%', right: '5%', bottom: '16%', top: '16%', containLabel: true },
+  dataZoom: [{ type: 'inside', start: 0, end: 100 }],
+  xAxis: { type: 'category', boundaryGap: false, data: labels.value },
+  yAxis: [
+    { type: 'value', name: 'MB/s' },
+    { type: 'value', name: '%', min: 0, max: 100 },
   ],
-  'bytes/s',
-));
+  series: [
+    lineWithAxis('Read MB/s', convertValues(valuesByLabel(props.series.diskRead), bytesPerSecondToMegabytes), '#0EA5E9', 0),
+    lineWithAxis('Write MB/s', convertValues(valuesByLabel(props.series.diskWrite), bytesPerSecondToMegabytes), '#EF4444', 0),
+    lineWithAxis('I/O Util %', valuesByLabel(props.series.diskUtil), '#F59E0B', 1),
+  ],
+}));
 
 const gcOption = computed(() => baseOption(
   ['GC pause'],
