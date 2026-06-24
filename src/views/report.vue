@@ -222,6 +222,17 @@
           </el-tab-pane>
           <el-tab-pane label="资源曲线" name="resource">
             <div v-loading="resourceLoading">
+              <div class="resource-toolbar">
+                <span>Prometheus 资源曲线</span>
+                <el-button
+                  size="small"
+                  :icon="Refresh"
+                  :disabled="!detailReport"
+                  @click="handleRefreshResourceMetrics"
+                >
+                  刷新
+                </el-button>
+              </div>
               <div class="resource-targets" v-if="resourceTargets.length > 0">
                 <button
                   v-for="target in resourceTargets"
@@ -536,6 +547,8 @@ const resourceError = ref('');
 const resourceLoading = ref(false);
 const resourceTargets = ref<ResourceTarget[]>([]);
 const selectedResourceInstance = ref('');
+const RESOURCE_METRICS_CACHE_TTL_MS = 60000;
+const RESOURCE_METRICS_STEP_CACHE_KEY = 'default';
 const resourceMetrics = ref<ResourceMetricsData>({
   reportId: 0,
   instance: '',
@@ -544,6 +557,7 @@ const resourceMetrics = ref<ResourceMetricsData>({
   step: 30,
   series: {}
 });
+const resourceMetricsCache = new Map<string, { expiresAt: number; data: ResourceMetricsData }>();
 
 const detailTitle = computed(() => {
   if (!detailReport.value) return '报告详情';
@@ -613,6 +627,10 @@ const resetResourceMetrics = (reportId = 0) => {
   resourceMetrics.value = { reportId, instance: '', fromMs: 0, toMs: 0, step: 30, series: {} };
 };
 
+const getResourceMetricsCacheKey = (reportId: number, instance?: string) => {
+  return `${reportId}|${instance || ''}|${RESOURCE_METRICS_STEP_CACHE_KEY}`;
+};
+
 const resetTransactionTrend = (reportId = 0) => {
   transactionTrend.value = {
     reportId,
@@ -626,14 +644,25 @@ const resetTransactionTrend = (reportId = 0) => {
   };
 };
 
-const loadResourceMetrics = async (reportId: number, instance?: string) => {
+const loadResourceMetrics = async (reportId: number, instance?: string, forceRefresh = false) => {
   resourceLoading.value = true;
   resourceError.value = '';
+  const cacheKey = getResourceMetricsCacheKey(reportId, instance);
+  const cached = resourceMetricsCache.get(cacheKey);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+    resourceMetrics.value = cached.data;
+    resourceLoading.value = false;
+    return;
+  }
   resetResourceMetrics(reportId);
   try {
-    const res = await getResourceMetrics(reportId, undefined, instance);
+    const res = await getResourceMetrics(reportId, undefined, instance, forceRefresh);
     if (res.data.code === 0) {
       resourceMetrics.value = res.data.data || resourceMetrics.value;
+      resourceMetricsCache.set(cacheKey, {
+        expiresAt: Date.now() + RESOURCE_METRICS_CACHE_TTL_MS,
+        data: resourceMetrics.value,
+      });
     } else {
       resourceError.value = res.data.message || '资源曲线查询失败';
     }
@@ -648,6 +677,15 @@ const handleSelectResourceTarget = async (target: ResourceTarget) => {
   if (!detailReport.value || target.instance === selectedResourceInstance.value) return;
   selectedResourceInstance.value = target.instance;
   await loadResourceMetrics(detailReport.value.id, target.instance);
+};
+
+const handleRefreshResourceMetrics = async () => {
+  if (!detailReport.value) return;
+  await loadResourceMetrics(
+    detailReport.value.id,
+    selectedResourceInstance.value || undefined,
+    true,
+  );
 };
 
 const openReportDetail = async (row: ReportItem) => {
@@ -868,6 +906,16 @@ const confirmCompare = async (targetId: number) => {
 
 .resource-alert {
   margin-bottom: 12px;
+}
+
+.resource-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
 }
 
 .resource-targets {

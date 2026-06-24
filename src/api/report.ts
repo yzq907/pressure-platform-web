@@ -78,13 +78,16 @@ export const getResourceTargets = (reportId: number) => {
     });
 }
 
-export const getResourceMetrics = (reportId: number, step?: number, instance?: string) => {
+export const getResourceMetrics = (reportId: number, step?: number, instance?: string, forceRefresh = false) => {
     const params: Record<string, any> = {};
     if (step !== undefined && step !== null) {
         params.step = step;
     }
     if (instance) {
         params.instance = instance;
+    }
+    if (forceRefresh) {
+        params.forceRefresh = true;
     }
     return request({
         url: '/report/resourceMetrics/' + reportId,

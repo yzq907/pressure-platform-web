@@ -211,6 +211,9 @@
         </el-form-item>
         <el-form-item label="字段值">
           <el-input v-model="insertForm.configValue" placeholder="字段值"></el-input>
+          <div v-if="getConfigHelpText(insertForm.configKey)" class="config-help">
+            {{ getConfigHelpText(insertForm.configKey) }}
+          </div>
         </el-form-item>
         <el-form-item label="字段描述">
           <el-input v-model="insertForm.description" placeholder="字段描述"></el-input>
@@ -235,6 +238,9 @@
         </el-form-item>
         <el-form-item label="字段值">
           <el-input v-model="editForm.configValue"></el-input>
+          <div v-if="getConfigHelpText(editForm.configKey)" class="config-help">
+            {{ getConfigHelpText(editForm.configKey) }}
+          </div>
         </el-form-item>
         <el-form-item label="字段描述">
           <el-input v-model="editForm.description"></el-input>
@@ -416,6 +422,14 @@ const regionInputRef = ref<any>(null);
 
 const optionKeyMap = { biz: 'BIZ_OPTIONS', service: 'SERVICE_OPTIONS', version: 'VERSION_OPTIONS', region: 'REGION_OPTIONS' };
 const optionDescMap = { biz: '产品线选项配置', service: '服务选项配置', version: '版本选项配置', region: '区域选项配置' };
+
+const configHelpTextMap: Record<string, string> = {
+  PROMETHEUS_RESOURCE_GROUP_MAP: '示例：{"EMM-API":["10.10.27.42:9200"]}；完整格式：{"EMM-API":{"targets":[{"name":"EMM-API","role":"被压服务","service":"EMM-API","instance":"10.10.27.42:9200"}]}}'
+};
+
+const getConfigHelpText = (key: string | null) => {
+  return key ? (configHelpTextMap[key] || '') : '';
+};
 
 const loadOptions = async () => {
   for (const type of ['biz', 'service', 'version', 'region'] as const) {
@@ -616,5 +630,13 @@ const saveEdit = async () => {
 <style scoped>
 .config-tabs {
   margin-bottom: 16px;
+}
+
+.config-help {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
 }
 </style>

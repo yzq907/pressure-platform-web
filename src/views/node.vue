@@ -162,6 +162,14 @@
         <el-form-item label="登录用户">
           <el-input v-model="editForm.username" placeholder="ssh用户"></el-input>
         </el-form-item>
+        <el-form-item label="新密码">
+          <el-input
+            v-model="editForm.password"
+            type="password"
+            show-password
+            placeholder="留空表示不修改密码"
+          ></el-input>
+        </el-form-item>
         <el-form-item label="所属区域">
           <el-select v-model="editForm.region" multiple filterable allow-create placeholder="选择区域">
             <el-option v-for="r in regionOptions" :key="r" :label="r" :value="r"></el-option>
@@ -326,6 +334,7 @@ let editForm = reactive({
   host: null,
   port: null,
   username: null,
+  password: '',
   region: [] as string[]
 });
 
@@ -337,6 +346,7 @@ const handleEdit = (row : any) => {
   editForm.host = row.host;
   editForm.port = row.port;
   editForm.username = row.username;
+  editForm.password = '';
   editForm.region = (row.region || '').split(',').filter((s: string) => s.trim());
   editVisible.value = true;
 };
@@ -344,6 +354,9 @@ const handleEdit = (row : any) => {
 const saveEdit = async () => {
   editForm.type = nodeTypeToCode(editForm.type);
   const body = { ...editForm, region: editForm.region.join(',') };
+  if (!body.password || body.password === '******') {
+    delete body.password;
+  }
   const res = await updateNode(editForm.id, body);
 
   const code = res.data.code
