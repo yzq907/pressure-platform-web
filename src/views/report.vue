@@ -208,6 +208,106 @@
               </el-table>
             </div>
           </el-tab-pane>
+          <el-tab-pane :label="`错误详情(${errorSamplesTotal})`" name="errors">
+            <div class="error-samples" v-loading="errorSamplesLoading">
+              <div class="error-toolbar">
+                <span>失败请求采样</span>
+                <div class="error-groups" v-if="errorGroupItems.length > 0">
+                  <el-tag
+                    v-for="item in errorGroupItems"
+                    :key="item.type"
+                    size="small"
+                    type="danger"
+                    effect="plain"
+                  >
+                    {{ item.type }} {{ item.count }}
+                  </el-tag>
+                </div>
+              </div>
+              <el-empty v-if="!errorSamplesLoading && errorSamples.length === 0" description="本次压测未采集到失败请求" />
+              <div v-else class="error-layout">
+                <el-table
+                  :data="errorSamples"
+                  stripe
+                  highlight-current-row
+                  size="small"
+                  class="error-table"
+                  table-layout="fixed"
+                  @current-change="handleSelectErrorSample"
+                >
+                  <el-table-column prop="sampleTimeText" label="时间" width="168" align="center" header-align="center"></el-table-column>
+                  <el-table-column prop="label" label="请求/交易" min-width="180" show-overflow-tooltip></el-table-column>
+                  <el-table-column prop="errorType" label="类型" width="96" align="center" header-align="center">
+                    <template #default="scope">
+                      <el-tag size="small" type="danger" effect="plain">{{ scope.row.errorType || scope.row.responseCode || '-' }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="responseCode" label="响应码" width="92" align="center" header-align="center"></el-table-column>
+                  <el-table-column label="耗时" width="92" align="center" header-align="center">
+                    <template #default="scope">{{ scope.row.elapsed }} ms</template>
+                  </el-table-column>
+                  <el-table-column prop="responseMessage" label="响应信息" min-width="140" show-overflow-tooltip></el-table-column>
+                </el-table>
+                <div class="error-detail" v-if="selectedErrorSample">
+                  <div class="error-detail-head">
+                    <div>
+                      <div class="error-detail-title">{{ selectedErrorSample.label || '未命名请求' }}</div>
+                      <div class="error-detail-meta">
+                        {{ selectedErrorSample.sampleTimeText || '-' }}
+                        <span>{{ selectedErrorSample.threadName || '-' }}</span>
+                        <span>{{ selectedErrorSample.elapsed }} ms</span>
+                      </div>
+                    </div>
+                    <el-tag type="danger" effect="dark">{{ selectedErrorSample.errorType || selectedErrorSample.responseCode || '-' }}</el-tag>
+                  </div>
+                  <div class="error-detail-grid">
+                    <div class="error-field">
+                      <span>响应码</span>
+                      <strong>{{ selectedErrorSample.responseCode || '-' }}</strong>
+                    </div>
+                    <div class="error-field">
+                      <span>响应信息</span>
+                      <strong>{{ selectedErrorSample.responseMessage || '-' }}</strong>
+                    </div>
+                    <div class="error-field wide">
+                      <span>请求地址</span>
+                      <strong>{{ selectedErrorSample.requestUrl || '-' }}</strong>
+                    </div>
+                  </div>
+                  <el-alert
+                    v-if="selectedErrorSample.truncated"
+                    title="部分字段已截断，仅展示采集到的前半部分内容"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                    class="error-alert"
+                  />
+                  <el-tabs class="error-detail-tabs">
+                    <el-tab-pane label="断言结果">
+                      <div class="error-text">
+                        <VirtualTextViewer :content="selectedErrorSample.failureMessage || '无断言失败信息'" />
+                      </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="Request Headers">
+                      <div class="error-text">
+                        <VirtualTextViewer :content="selectedErrorSample.requestHeaders || '无请求头数据'" />
+                      </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="Response Headers">
+                      <div class="error-text">
+                        <VirtualTextViewer :content="selectedErrorSample.responseHeaders || '无响应头数据'" />
+                      </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="Response Body">
+                      <div class="error-text large">
+                        <VirtualTextViewer :content="selectedErrorSample.responseBody || '无响应体数据'" />
+                      </div>
+                    </el-tab-pane>
+                  </el-tabs>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
           <el-tab-pane label="压测曲线" name="pressure">
             <el-empty v-if="pressureMetrics.length === 0" description="暂无压测指标快照，稍后刷新或查看 Grafana" />
             <JmeterMetricsChart v-else :data="pressureMetrics" />
@@ -274,7 +374,7 @@ import {ref, reactive, computed, onActivated, watch} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
 import { Download, Search, Delete, Edit, Refresh, Top, TrendCharts, Box, DataAnalysis } from '@element-plus/icons-vue';
-import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact, getMetrics, getResourceMetrics, getResourceTargets, getTransactionStats, getTransactionTrend} from "../api/report";
+import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact, getMetrics, getResourceMetrics, getResourceTargets, getTransactionStats, getTransactionTrend, getErrorSamples} from "../api/report";
 import JmeterCompareChart from '../components/JmeterCompareChart.vue';
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
 import ResourceMetricsChart from '../components/ResourceMetricsChart.vue';
@@ -370,6 +470,24 @@ interface ResourceTarget {
   role: string;
   service: string;
   instance: string;
+}
+
+interface ErrorSampleItem {
+  sampleTime: number;
+  sampleTimeText: string;
+  label: string;
+  threadName: string;
+  responseCode: string;
+  responseMessage: string;
+  elapsed: number;
+  failureMessage: string;
+  requestUrl: string;
+  requestHeaders: string;
+  requestBody: string;
+  responseHeaders: string;
+  responseBody: string;
+  truncated: boolean;
+  errorType: string;
 }
 
 const route = useRoute();
@@ -547,6 +665,11 @@ const resourceError = ref('');
 const resourceLoading = ref(false);
 const resourceTargets = ref<ResourceTarget[]>([]);
 const selectedResourceInstance = ref('');
+const errorSamplesLoading = ref(false);
+const errorSamples = ref<ErrorSampleItem[]>([]);
+const errorSamplesTotal = ref(0);
+const errorSampleGroups = ref<Record<string, number>>({});
+const selectedErrorSample = ref<ErrorSampleItem | null>(null);
 const RESOURCE_METRICS_CACHE_TTL_MS = 60000;
 const RESOURCE_METRICS_STEP_CACHE_KEY = 'default';
 const resourceMetrics = ref<ResourceMetricsData>({
@@ -606,6 +729,10 @@ const hasTransactionTrend = computed(() => {
     || Object.values(trend.activeThreads || {}).some((items) => Array.isArray(items) && items.length > 0);
 });
 
+const errorGroupItems = computed(() => Object.entries(errorSampleGroups.value || {})
+  .map(([type, count]) => ({ type, count }))
+  .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)));
+
 const formatTime = (timestampMs: number) => {
   if (!timestampMs) return '-';
   return new Date(timestampMs).toLocaleString();
@@ -642,6 +769,39 @@ const resetTransactionTrend = (reportId = 0) => {
     avgRt: {},
     activeThreads: {},
   };
+};
+
+const resetErrorSamples = () => {
+  errorSamples.value = [];
+  errorSamplesTotal.value = 0;
+  errorSampleGroups.value = {};
+  selectedErrorSample.value = null;
+};
+
+const loadErrorSamples = async (reportId: number) => {
+  errorSamplesLoading.value = true;
+  try {
+    const res = await getErrorSamples(reportId, 100);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '错误详情读取失败');
+      resetErrorSamples();
+      return;
+    }
+    const data = res.data.data || {};
+    errorSamples.value = data.list || [];
+    errorSamplesTotal.value = data.total || errorSamples.value.length;
+    errorSampleGroups.value = data.groups || {};
+    selectedErrorSample.value = errorSamples.value[0] || null;
+  } catch (e) {
+    resetErrorSamples();
+    ElMessage.error('错误详情读取失败');
+  } finally {
+    errorSamplesLoading.value = false;
+  }
+};
+
+const handleSelectErrorSample = (row: ErrorSampleItem | null) => {
+  selectedErrorSample.value = row;
 };
 
 const loadResourceMetrics = async (reportId: number, instance?: string, forceRefresh = false) => {
@@ -697,6 +857,7 @@ const openReportDetail = async (row: ReportItem) => {
   pressureMetrics.value = [];
   transactionStats.value = [];
   resetTransactionTrend(row.id);
+  resetErrorSamples();
   resourceTargets.value = [];
   selectedResourceInstance.value = '';
   resetResourceMetrics(row.id);
@@ -705,7 +866,8 @@ const openReportDetail = async (row: ReportItem) => {
       getMetrics(row.id, 5),
       getResourceTargets(row.id),
       getTransactionStats(row.id),
-      getTransactionTrend(row.id, 60)
+      getTransactionTrend(row.id, 60),
+      loadErrorSamples(row.id)
     ]);
     if (pressureRes.status === 'fulfilled' && pressureRes.value.data.code === 0) {
       pressureMetrics.value = pressureRes.value.data.data || [];
@@ -904,6 +1066,136 @@ const confirmCompare = async (targetId: number) => {
   font-size: 13px;
 }
 
+.error-samples {
+  min-height: 420px;
+}
+
+.error-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+}
+
+.error-groups {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.error-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 0.9fr) minmax(420px, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.error-table {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.error-table :deep(.el-table__header th) {
+  background: var(--color-bg-muted);
+  color: var(--color-fg-secondary);
+  font-weight: 700;
+}
+
+.error-detail {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--color-bg-elevated);
+}
+
+.error-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.error-detail-title {
+  color: var(--color-fg-primary);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.error-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
+}
+
+.error-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.error-field {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
+
+.error-field.wide {
+  grid-column: 1 / -1;
+}
+
+.error-field span,
+.error-field strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error-field span {
+  color: var(--color-fg-tertiary);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.error-field strong {
+  color: var(--color-fg-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.error-alert {
+  margin-bottom: 10px;
+}
+
+.error-detail-tabs {
+  min-width: 0;
+}
+
+.error-text {
+  height: 180px;
+  border-radius: var(--radius-sm);
+  background: #1f2933;
+  overflow: hidden;
+}
+
+.error-text.large {
+  height: 260px;
+}
+
 .resource-alert {
   margin-bottom: 12px;
 }
@@ -986,6 +1278,10 @@ const confirmCompare = async (targetId: number) => {
 @media (max-width: 1100px) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .error-layout {
+    grid-template-columns: 1fr;
   }
 
   .resource-targets {

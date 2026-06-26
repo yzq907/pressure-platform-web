@@ -96,6 +96,14 @@ export const getResourceMetrics = (reportId: number, step?: number, instance?: s
     });
 }
 
+export const getErrorSamples = (reportId: number, limit: number = 100) => {
+    return request({
+        url: '/report/errorSamples/' + reportId,
+        method: 'get',
+        params: { limit }
+    });
+}
+
 export const downloadReport = async (id: number) => {
     try {
         const response: AxiosResponse<Blob> = await request({
