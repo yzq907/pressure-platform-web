@@ -117,14 +117,21 @@
     </el-dialog>
 
     <!-- 产物文件对话框 -->
-    <el-dialog title="产物文件" v-model="artifactVisible" width="620px" destroy-on-close>
-      <el-table :data="artifactList" stripe size="small" v-loading="artifactLoading">
-        <el-table-column prop="name" label="文件名" min-width="220" align="center"></el-table-column>
+    <el-dialog title="产物文件" v-model="artifactVisible" width="720px" class="artifact-dialog" destroy-on-close>
+      <el-table
+        :data="artifactList"
+        stripe
+        size="small"
+        class="artifact-table"
+        table-layout="fixed"
+        v-loading="artifactLoading"
+      >
+        <el-table-column prop="name" label="文件名" min-width="280" align="left" header-align="left" show-overflow-tooltip></el-table-column>
         <el-table-column label="大小" width="110" align="center">
           <template #default="scope">{{ formatBytes(scope.row.size) }}</template>
         </el-table-column>
-        <el-table-column prop="modifyTime" label="更新时间" min-width="160" align="center"></el-table-column>
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column prop="modifyTime" label="更新时间" width="170" align="center"></el-table-column>
+        <el-table-column label="操作" width="96" align="center">
           <template #default="scope">
             <el-button text type="primary" size="small" :icon="Download" @click="handleDownloadArtifact(scope.row.name)">下载</el-button>
           </template>
@@ -986,6 +993,29 @@ const confirmCompare = async (targetId: number) => {
   justify-content: center;
   margin-left: 0;
   padding: 0;
+}
+
+.artifact-dialog :deep(.el-dialog__body) {
+  overflow: hidden;
+}
+
+.artifact-table {
+  width: 100%;
+}
+
+.artifact-table :deep(.el-table__cell) {
+  vertical-align: middle;
+}
+
+.artifact-table :deep(.cell) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artifact-table :deep(th .cell),
+.artifact-table :deep(.is-center .cell) {
+  justify-content: center;
 }
 
 .report-detail {

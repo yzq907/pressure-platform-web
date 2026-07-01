@@ -1,77 +1,87 @@
 import request from '../utils/request';
 import {AxiosResponse} from "axios";
 
-export const getCsvList = (param: any) => {
+export const getPublicCsvList = (param: any) => {
     return request({
-        url: '/csv/list',
+        url: '/csv/resource/list',
         method: 'get',
         params: param
     });
 }
 
-export const deleteCsv = (id: number) => {
+export const uploadPublicCsv = (body: any, overwrite = false) => {
     return request({
-        url: '/csv/delete/' + id,
-        method: 'get'
-    });
-}
-
-export const uploadCsv = (testCaseId: number, body: any) => {
-    return request({
-        url: '/csv/upload/' + testCaseId,
+        url: '/csv/resource/upload',
         method: 'post',
         headers:{
             'Content-Type':'multipart/form-data',
         },
+        params: overwrite ? { overwrite: true } : {},
         data: body
     })
 }
 
-export const viewCsv = (id: number) => {
+export const deletePublicCsv = (filename: string, force = false) => {
     return request({
-        url: '/csv/view/' + id,
+        url: '/csv/resource/delete/' + encodeURIComponent(filename),
+        method: 'get',
+        params: force ? { force: true } : {}
+    });
+}
+
+export const viewPublicCsv = (filename: string) => {
+    return request({
+        url: '/csv/resource/view/' + encodeURIComponent(filename),
         method: 'get'
     });
 }
 
-export const updateCsv = (id: number, content: string) => {
+export const updatePublicCsv = (filename: string, content: string) => {
     return request({
-        url: '/csv/update/' + id,
+        url: '/csv/resource/update/' + encodeURIComponent(filename),
         method: 'post',
         data: content,
         headers: { 'Content-Type': 'text/plain' }
     });
 }
 
-export const updateCsvStrategy = (id: number, distributionStrategy: string) => {
+export const addCsvBinding = (param: any) => {
     return request({
-        url: '/csv/updateStrategy/' + id,
+        url: '/csv/binding/add',
+        method: 'post',
+        data: param
+    });
+}
+
+export const deleteCsvBinding = (id: number) => {
+    return request({
+        url: '/csv/binding/delete/' + id,
+        method: 'get'
+    });
+}
+
+export const updateCsvBindingStrategy = (id: number, distributionStrategy: string) => {
+    return request({
+        url: '/csv/binding/updateStrategy/' + id,
         method: 'post',
         data: { distributionStrategy }
     });
 }
 
-export const downloadCsv = async (id: number, csvName: string) => {
+export const downloadPublicCsv = async (filename: string) => {
     try {
         const response: AxiosResponse<Blob> = await request({
-            url: '/csv/download/' + id,
+            url: '/csv/resource/download/' + encodeURIComponent(filename),
             method: 'get',
-            responseType: 'blob', // Important: Set responseType to 'blob' to handle binary data
+            responseType: 'blob',
         });
-
-        // Create a blob URL for the downloaded file
         const url = window.URL.createObjectURL(new Blob([response.data]));
-
-        // Create a link and trigger a download
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', csvName); // Set the filename here
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
-
-        // Clean up the object URL after the download
         window.URL.revokeObjectURL(url);
-
         return {success: true};
     } catch (error) {
         return {success: false, error};

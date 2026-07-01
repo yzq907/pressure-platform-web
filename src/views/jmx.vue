@@ -84,7 +84,6 @@ import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
 import { Plus, Search, Delete, Edit, Refresh, Top } from '@element-plus/icons-vue';
 import {deleteJmx, viewJmx, getJmxList, downloadJmx, updateJmxContent} from "../api/jmx";
-import {viewCsv} from "../api/csv";
 import {JmxItem} from "../common/item";
 import {checkToLogin, handleTestCaseClick} from "../common/push";
 

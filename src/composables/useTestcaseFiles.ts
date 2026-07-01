@@ -1,11 +1,26 @@
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getFull } from '../api/testcase';
-import { deleteCsv, uploadCsv, downloadCsv, updateCsvStrategy } from '../api/csv';
+import {
+  addCsvBinding,
+  deleteCsvBinding,
+  downloadPublicCsv,
+  getPublicCsvList,
+  updateCsvBindingStrategy
+} from '../api/csv';
 import { deleteJmx, uploadJmx, downloadJmx } from '../api/jmx';
 import { deleteJar, uploadJar, downloadJar } from '../api/jar';
-import { deleteUploadFile, uploadUploadFile, downloadUploadFile } from '../api/uploadFile';
-import type { CsvItem, JarItem, JmxItem, UploadFileItem } from '../common/item';
+import {
+  addUploadFileBinding,
+  deleteUploadFileBinding
+} from '../api/uploadFile';
+import type {
+  CsvBindingItem,
+  JarItem,
+  JmxItem,
+  PublicCsvItem,
+  UploadFileBindingItem
+} from '../common/item';
 
 interface TestCaseFullItem {
   id: number | null;
@@ -20,9 +35,9 @@ interface TestCaseFullItem {
   duration: string | null;
   testCaseDir: string | null;
   jmxItem: JmxItem | null;
-  csvItemList: CsvItem[];
+  csvBindingItemList: CsvBindingItem[];
   jarItemList: JarItem[];
-  uploadFileItemList: UploadFileItem[];
+  uploadFileBindingItemList: UploadFileBindingItem[];
 }
 
 export const useTestcaseFiles = () => {
@@ -40,14 +55,22 @@ export const useTestcaseFiles = () => {
     duration: null,
     testCaseDir: null,
     jmxItem: null,
-    csvItemList: [],
+    csvBindingItemList: [],
     jarItemList: [],
-    uploadFileItemList: []
+    uploadFileBindingItemList: []
   });
   const jmxFullData = ref<JmxItem[]>([]);
-  const csvFullData = ref<CsvItem[]>([]);
+  const csvBindingFullData = ref<CsvBindingItem[]>([]);
   const jarFullData = ref<JarItem[]>([]);
-  const uploadFileFullData = ref<UploadFileItem[]>([]);
+  const uploadFileBindingFullData = ref<UploadFileBindingItem[]>([]);
+  const publicCsvSelectVisible = ref(false);
+  const publicUploadFileSelectVisible = ref(false);
+  const publicCsvLoading = ref(false);
+  const publicUploadFileLoading = ref(false);
+  const publicCsvOptions = ref<PublicCsvItem[]>([]);
+  const publicUploadFileOptions = ref<PublicCsvItem[]>([]);
+
+  const currentTestCaseId = () => Number(testCaseFullData.value.id || 0);
 
   const getFullTestCase = async (id: number) => {
     fullVisible.value = true;
@@ -60,22 +83,116 @@ export const useTestcaseFiles = () => {
     const fullData = res.data.data;
     testCaseFullData.value = fullData;
     jmxFullData.value = fullData.jmxVO === null ? [] : [fullData.jmxVO];
-    csvFullData.value = fullData.csvVOList;
+    csvBindingFullData.value = fullData.csvBindingVOList || [];
     jarFullData.value = fullData.jarVOList;
-    uploadFileFullData.value = fullData.uploadFileVOList || [];
+    uploadFileBindingFullData.value = fullData.uploadFileBindingVOList || [];
   };
 
-  const currentTestCaseId = () => Number(testCaseFullData.value.id || 0);
+  const loadPublicCsvOptions = async () => {
+    publicCsvLoading.value = true;
+    try {
+      const res = await getPublicCsvList({ page: 1, size: 100, fileType: 'csv' });
+      if (res.data.code !== 0) {
+        ElMessage.error(res.data.message || '公共参数文件获取失败');
+        publicCsvOptions.value = [];
+        return;
+      }
+      publicCsvOptions.value = res.data.data.list || [];
+    } finally {
+      publicCsvLoading.value = false;
+    }
+  };
 
-  const handleCsvDelete = async (id: number) => {
-    await ElMessageBox.confirm('确定要删除吗？', '提示', { type: 'warning' });
-    const res = await deleteCsv(id);
-    const code = res.data.code;
-    if (code != 0) {
-      ElMessage.error(res.data.message);
-    } else {
-      ElMessage.success('删除成功');
-      await getFullTestCase(currentTestCaseId());
+  const openPublicCsvSelect = async () => {
+    publicCsvSelectVisible.value = true;
+    await loadPublicCsvOptions();
+  };
+
+  const loadPublicUploadFileOptions = async () => {
+    publicUploadFileLoading.value = true;
+    try {
+      const res = await getPublicCsvList({ page: 1, size: 100 });
+      if (res.data.code !== 0) {
+        ElMessage.error(res.data.message || '公共文件获取失败');
+        publicUploadFileOptions.value = [];
+        return;
+      }
+      publicUploadFileOptions.value = res.data.data.list || [];
+    } finally {
+      publicUploadFileLoading.value = false;
+    }
+  };
+
+  const openPublicUploadFileSelect = async () => {
+    publicUploadFileSelectVisible.value = true;
+    await loadPublicUploadFileOptions();
+  };
+
+  const handlePublicCsvBind = async (row: PublicCsvItem) => {
+    const testCaseId = currentTestCaseId();
+    const res = await addCsvBinding({
+      testCaseId,
+      filename: row.filename,
+      distributionStrategy: 'shared'
+    });
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '绑定失败');
+      return;
+    }
+    ElMessage.success('绑定成功');
+    await getFullTestCase(testCaseId);
+  };
+
+  const handlePublicUploadFileBind = async (row: PublicCsvItem) => {
+    const testCaseId = currentTestCaseId();
+    const res = await addUploadFileBinding({
+      testCaseId,
+      filename: row.filename
+    });
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '绑定失败');
+      return;
+    }
+    ElMessage.success('绑定成功');
+    await getFullTestCase(testCaseId);
+  };
+
+  const handleCsvBindingDelete = async (id: number) => {
+    await ElMessageBox.confirm('确定要解绑该公共参数文件吗？', '提示', { type: 'warning' });
+    const res = await deleteCsvBinding(id);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '解绑失败');
+      return;
+    }
+    ElMessage.success('解绑成功');
+    await getFullTestCase(currentTestCaseId());
+  };
+
+  const handleUploadFileBindingDelete = async (id: number) => {
+    await ElMessageBox.confirm('确定要解绑该公共上传文件吗？', '提示', { type: 'warning' });
+    const res = await deleteUploadFileBinding(id);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '解绑失败');
+      return;
+    }
+    ElMessage.success('解绑成功');
+    await getFullTestCase(currentTestCaseId());
+  };
+
+  const handleCsvBindingStrategyChange = async (row: CsvBindingItem, value: string) => {
+    const previous = row.distributionStrategy || 'shared';
+    row.distributionStrategy = value;
+    try {
+      const res = await updateCsvBindingStrategy(row.id, value);
+      if (res.data.code !== 0) {
+        row.distributionStrategy = previous;
+        ElMessage.error(res.data.message || '策略更新失败');
+        return;
+      }
+      ElMessage.success('策略已更新');
+    } catch {
+      row.distributionStrategy = previous;
+      ElMessage.error('策略更新失败，请重试');
     }
   };
 
@@ -103,18 +220,6 @@ export const useTestcaseFiles = () => {
     }
   };
 
-  const handleUploadFileDelete = async (id: number) => {
-    await ElMessageBox.confirm('确定要删除吗？', '提示', { type: 'warning' });
-    const res = await deleteUploadFile(id);
-    const code = res.data.code;
-    if (code != 0) {
-      ElMessage.error(res.data.message);
-    } else {
-      ElMessage.success('删除成功');
-      await getFullTestCase(currentTestCaseId());
-    }
-  };
-
   const handleJmxUpload = async (uploadRequestOptions: any) => {
     const testCaseId = currentTestCaseId();
     const formData = new FormData();
@@ -126,42 +231,6 @@ export const useTestcaseFiles = () => {
     } else {
       ElMessage.success('上传成功');
       await getFullTestCase(testCaseId);
-    }
-  };
-
-  const handleCsvUpload = async (uploadRequestOptions: any) => {
-    const testCaseId = currentTestCaseId();
-    const formData = new FormData();
-    formData.append('csvFile', uploadRequestOptions.file);
-    const res = await uploadCsv(testCaseId, formData);
-    const code = res.data.code;
-    if (code != 0) {
-      if (code === 1015) {
-        ElMessage.warning(res.data.message);
-      } else {
-        ElMessage.error(res.data.message);
-      }
-    } else {
-      ElMessage.success('上传成功');
-      await getFullTestCase(testCaseId);
-    }
-  };
-
-  const handleCsvStrategyChange = async (row: CsvItem, value: string) => {
-    const previous = row.distributionStrategy || 'shared';
-    row.distributionStrategy = value;
-    try {
-      const res = await updateCsvStrategy(row.id, value);
-      const code = res.data.code;
-      if (code != 0) {
-        row.distributionStrategy = previous;
-        ElMessage.error(res.data.message);
-        return;
-      }
-      ElMessage.success('策略已更新');
-    } catch {
-      row.distributionStrategy = previous;
-      ElMessage.error('策略更新失败，请重试');
     }
   };
 
@@ -179,24 +248,6 @@ export const useTestcaseFiles = () => {
     }
   };
 
-  const handleUploadFileUpload = async (uploadRequestOptions: any) => {
-    const testCaseId = currentTestCaseId();
-    const formData = new FormData();
-    formData.append('uploadFile', uploadRequestOptions.file);
-    const res = await uploadUploadFile(testCaseId, formData);
-    const code = res.data.code;
-    if (code != 0) {
-      if (res.data.message && res.data.message.includes('未引用上传文件')) {
-        ElMessage.warning(res.data.message);
-      } else {
-        ElMessage.error(res.data.message);
-      }
-    } else {
-      ElMessage.success('上传成功');
-      await getFullTestCase(testCaseId);
-    }
-  };
-
   const handleJmxDownload = async (id: number, jmxName: string) => {
     if (!jmxName) {
       ElMessage.error('jmx脚本文件不存在');
@@ -208,12 +259,12 @@ export const useTestcaseFiles = () => {
     }
   };
 
-  const handleCsvDownload = async (id: number, csvName: string) => {
-    if (!csvName) {
+  const handlePublicCsvDownload = async (filename: string) => {
+    if (!filename) {
       ElMessage.error('csv数据文件不存在');
       return;
     }
-    const res = await downloadCsv(id, csvName);
+    const res = await downloadPublicCsv(filename);
     if (!res.success) {
       ElMessage.error('下载失败, 请重试');
     }
@@ -230,37 +281,33 @@ export const useTestcaseFiles = () => {
     }
   };
 
-  const handleUploadFileDownload = async (id: number, fileName: string) => {
-    if (!fileName) {
-      ElMessage.error('上传接口文件不存在');
-      return;
-    }
-    const res = await downloadUploadFile(id, fileName);
-    if (!res.success) {
-      ElMessage.error('下载失败, 请重试');
-    }
-  };
-
   return {
     fullVisible,
     testCaseFullData,
     jmxFullData,
-    csvFullData,
+    csvBindingFullData,
     jarFullData,
-    uploadFileFullData,
+    uploadFileBindingFullData,
+    publicCsvSelectVisible,
+    publicUploadFileSelectVisible,
+    publicCsvLoading,
+    publicUploadFileLoading,
+    publicCsvOptions,
+    publicUploadFileOptions,
     getFullTestCase,
-    handleCsvDelete,
+    openPublicCsvSelect,
+    openPublicUploadFileSelect,
+    handlePublicCsvBind,
+    handlePublicUploadFileBind,
+    handleCsvBindingDelete,
+    handleUploadFileBindingDelete,
     handleJmxDelete,
     handleJarDelete,
-    handleUploadFileDelete,
     handleJmxUpload,
-    handleCsvUpload,
-    handleCsvStrategyChange,
+    handleCsvBindingStrategyChange,
     handleJarUpload,
-    handleUploadFileUpload,
     handleJmxDownload,
-    handleCsvDownload,
-    handleJarDownload,
-    handleUploadFileDownload
+    handlePublicCsvDownload,
+    handleJarDownload
   };
 };

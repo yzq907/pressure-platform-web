@@ -141,42 +141,97 @@
             📊 CSV 数据文件
           </div>
           <el-space direction="horizontal" alignment="center">
-            <el-upload action="" :show-file-list="false" :http-request="handleCsvUpload" accept=".csv,.dat">
-              <el-button type="primary">本地上传</el-button>
-            </el-upload>
+            <el-button type="primary" @click="openPublicCsvSelect">选择公共文件</el-button>
           </el-space>
         </div>
-        <el-table :data="csvFullData" border style="width: 100%">
+        <div style="font-weight: 600; margin-bottom: 10px;">公共参数文件</div>
+        <el-table :data="csvBindingFullData" border style="width: 100%; margin-bottom: 18px;">
           <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
-          <el-table-column prop="dstName" label="名称" align="center">
+          <el-table-column prop="filename" label="名称" align="center">
             <template #default="scope">
-              <div @click="handleCsvDownload(scope.row.id, scope.row.dstName)" style="color: blue; cursor: pointer;">
-                {{ scope.row.dstName }}
+              <div @click="handlePublicCsvDownload(scope.row.filename)" style="color: blue; cursor: pointer;">
+                {{ scope.row.filename }}
               </div>
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述" align="center"></el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.exists ? 'success' : 'warning'" size="small">
+                {{ scope.row.exists ? '存在' : '缺失' }}
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="分布式策略" width="170" align="center">
             <template #default="scope">
               <el-select
                   size="small"
                   :model-value="scope.row.distributionStrategy || 'shared'"
-                  @change="(value) => handleCsvStrategyChange(scope.row, value)"
+                  @change="(value) => handleCsvBindingStrategyChange(scope.row, value)"
               >
                 <el-option label="共享文件" value="shared"></el-option>
                 <el-option label="按压力机切片" value="split_by_slave"></el-option>
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column prop="testCaseId" label="用例" align="center"></el-table-column>
-          <el-table-column label="操作" width="200" align="center">
+          <el-table-column label="操作" width="220" align="center">
             <template #default="scope">
-              <el-button text type="primary" icon="el-icon-view" @click="csvDrawer = true, handleCsvView(scope.row.id)" v-permiss="'testcase'">预览</el-button>
-              <el-button text type="danger" icon="el-icon-delete" @click="handleCsvDelete(scope.row.id)" v-permiss="'testcase'">删除</el-button>
+              <el-button text type="primary" icon="el-icon-view" @click="csvDrawer = true, handlePublicCsvView(scope.row.filename)" v-permiss="'testcase'">预览</el-button>
+              <el-button text type="danger" icon="el-icon-delete" @click="handleCsvBindingDelete(scope.row.id)" v-permiss="'testcase'">解绑</el-button>
             </template>
           </el-table-column>
+          <template #empty><el-empty description="暂无公共参数文件绑定" /></template>
         </el-table>
       </el-card>
+
+      <el-dialog v-model="publicCsvSelectVisible" title="选择公共参数文件" width="760px">
+        <el-table :data="publicCsvOptions" border v-loading="publicCsvLoading" style="width: 100%">
+          <el-table-column prop="filename" label="文件名" min-width="180" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="referenceCount" label="引用数" width="90" align="center"></el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.exists ? 'success' : 'warning'" size="small">
+                {{ scope.row.exists ? '存在' : '缺失' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="scope">
+              <el-button text type="primary" @click="handlePublicCsvBind(scope.row)">添加</el-button>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无公共参数文件，请先到数据管理上传" /></template>
+        </el-table>
+      </el-dialog>
+
+      <el-dialog v-model="publicUploadFileSelectVisible" title="选择公共上传文件" width="760px">
+        <el-table :data="publicUploadFileOptions" border v-loading="publicUploadFileLoading" style="width: 100%">
+          <el-table-column prop="filename" label="文件名" min-width="180" show-overflow-tooltip></el-table-column>
+          <el-table-column label="类型" width="110" align="center">
+            <template #default="scope">
+              <el-tag size="small" :type="scope.row.fileType === 'csv' ? 'success' : 'info'">
+                {{ scope.row.fileType === 'csv' ? '参数化' : '上传文件' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="referenceCount" label="引用数" width="90" align="center"></el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.exists ? 'success' : 'warning'" size="small">
+                {{ scope.row.exists ? '存在' : '缺失' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="scope">
+              <el-button text type="primary" @click="handlePublicUploadFileBind(scope.row)">添加</el-button>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无公共文件，请先到数据管理上传" /></template>
+        </el-table>
+      </el-dialog>
 
       <!-- 上传接口文件资源模块 -->
       <el-card shadow="hover" style="margin-bottom: 30px;">
@@ -185,27 +240,33 @@
             📎 上传接口文件资源
           </div>
           <el-space direction="horizontal" alignment="center">
-            <el-upload action="" :show-file-list="false" :http-request="handleUploadFileUpload">
-              <el-button type="primary">本地上传</el-button>
-            </el-upload>
+            <el-button type="primary" @click="openPublicUploadFileSelect">选择公共文件</el-button>
           </el-space>
         </div>
-        <el-table :data="uploadFileFullData" border style="width: 100%">
+        <div style="font-weight: 600; margin-bottom: 10px;">公共上传文件</div>
+        <el-table :data="uploadFileBindingFullData" border style="width: 100%; margin-bottom: 18px;">
           <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
-          <el-table-column prop="dstName" label="名称" align="center">
+          <el-table-column prop="filename" label="名称" align="center">
             <template #default="scope">
-              <div @click="handleUploadFileDownload(scope.row.id, scope.row.dstName)" style="color: blue; cursor: pointer;">
-                {{ scope.row.dstName }}
+              <div @click="handlePublicCsvDownload(scope.row.filename)" style="color: blue; cursor: pointer;">
+                {{ scope.row.filename }}
               </div>
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述" align="center"></el-table-column>
-          <el-table-column prop="testCaseId" label="用例" align="center"></el-table-column>
-          <el-table-column label="操作" width="160" align="center">
+          <el-table-column label="状态" width="90" align="center">
             <template #default="scope">
-              <el-button text type="danger" icon="el-icon-delete" @click="handleUploadFileDelete(scope.row.id)" v-permiss="'testcase'">删除</el-button>
+              <el-tag :type="scope.row.exists ? 'success' : 'warning'" size="small">
+                {{ scope.row.exists ? '存在' : '缺失' }}
+              </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="操作" width="160" align="center">
+            <template #default="scope">
+              <el-button text type="danger" icon="el-icon-delete" @click="handleUploadFileBindingDelete(scope.row.id)" v-permiss="'testcase'">解绑</el-button>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无公共上传文件绑定" /></template>
         </el-table>
       </el-card>
 
@@ -217,7 +278,7 @@
           </div>
 
           <el-space direction="horizontal" alignment="center">
-            <el-upload action="" :show-file-list="false" :http-request="handleJarUpload" accept=".jar">
+            <el-upload action="" multiple :show-file-list="false" :http-request="handleJarUpload" accept=".jar">
               <el-button type="primary">本地上传</el-button>
             </el-upload>
           </el-space>
@@ -1035,7 +1096,7 @@ import {
   updateTestCase
 } from "../api/testcase";
 import {getOptions} from "../api/config";
-import {viewCsv, updateCsv} from "../api/csv";
+import {viewPublicCsv, updatePublicCsv} from "../api/csv";
 import {getReportListByTestCase, getMetrics} from "../api/report";
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
 import HistoryReportDrawer from '../components/testcase/HistoryReportDrawer.vue';
@@ -1339,23 +1400,30 @@ const {
   fullVisible,
   testCaseFullData,
   jmxFullData,
-  csvFullData,
+  csvBindingFullData,
   jarFullData,
-  uploadFileFullData,
+  uploadFileBindingFullData,
+  publicCsvSelectVisible,
+  publicUploadFileSelectVisible,
+  publicCsvLoading,
+  publicUploadFileLoading,
+  publicCsvOptions,
+  publicUploadFileOptions,
   getFullTestCase,
-  handleCsvDelete,
+  openPublicCsvSelect,
+  openPublicUploadFileSelect,
+  handlePublicCsvBind,
+  handlePublicUploadFileBind,
+  handleCsvBindingDelete,
+  handleUploadFileBindingDelete,
   handleJmxDelete,
   handleJarDelete,
-  handleUploadFileDelete,
   handleJmxUpload,
-  handleCsvUpload,
-  handleCsvStrategyChange,
+  handleCsvBindingStrategyChange,
   handleJarUpload,
-  handleUploadFileUpload,
   handleJmxDownload,
-  handleCsvDownload,
-  handleJarDownload,
-  handleUploadFileDownload
+  handlePublicCsvDownload,
+  handleJarDownload
 } = useTestcaseFiles();
 
 // JMX 预览和在线编辑
@@ -1407,11 +1475,12 @@ const {
 const csvFile = ref('');
 const csvEditMode = ref(false);
 const csvTextContent = ref('');
-const currentCsvId = ref(0);
-const handleCsvView = async (id: number) => {
+const currentCsvFilename = ref('');
+
+const handlePublicCsvView = async (filename: string) => {
   csvEditMode.value = false;
-  currentCsvId.value = id;
-  const res = await viewCsv(id);
+  currentCsvFilename.value = filename;
+  const res = await viewPublicCsv(filename);
   csvFile.value = res.data;
 };
 
@@ -1425,7 +1494,7 @@ const cancelCsvEdit = () => {
 };
 
 const saveCsvEdit = async () => {
-  const res = await updateCsv(currentCsvId.value, csvTextContent.value);
+  const res = await updatePublicCsv(currentCsvFilename.value, csvTextContent.value);
   const code = res.data.code;
   if (code !== 0) {
     ElMessage.error(res.data.message || '保存失败');

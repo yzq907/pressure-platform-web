@@ -41,6 +41,35 @@ export interface CsvItem {
     modifyTime: string;
 }
 
+export interface PublicCsvItem {
+    id: number;
+    filename: string;
+    fileType: string;
+    description: string;
+    fileSize: number;
+    referenceCount: number;
+    csvReferenceCount: number;
+    uploadFileReferenceCount: number;
+    exists: boolean;
+    creator: string;
+    modifier: string;
+    createTime: string;
+    modifyTime: string;
+}
+
+export interface CsvBindingItem {
+    id: number;
+    testCaseId: number;
+    filename: string;
+    description: string;
+    distributionStrategy: string;
+    exists: boolean;
+    creator: string;
+    modifier: string;
+    createTime: string;
+    modifyTime: string;
+}
+
 export interface UploadFileItem {
     id: number;
     srcName: string;
@@ -48,6 +77,18 @@ export interface UploadFileItem {
     description: string;
     fileDir: string;
     testCaseId: number;
+    creator: string;
+    modifier: string;
+    createTime: string;
+    modifyTime: string;
+}
+
+export interface UploadFileBindingItem {
+    id: number;
+    testCaseId: number;
+    filename: string;
+    description: string;
+    exists: boolean;
     creator: string;
     modifier: string;
     createTime: string;
