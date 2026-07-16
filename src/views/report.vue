@@ -8,6 +8,12 @@
           <el-option label="调试" :value="1"></el-option>
           <el-option label="压测" :value="2"></el-option>
         </el-select>
+        <el-select v-model="query.status" placeholder="状态" class="handle-select mr10" style="width:130px" clearable>
+          <el-option label="没有执行" :value="0"></el-option>
+          <el-option label="正在执行" :value="1"></el-option>
+          <el-option label="执行成功" :value="2"></el-option>
+          <el-option label="执行异常" :value="3"></el-option>
+        </el-select>
 
 
         <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
@@ -503,6 +509,7 @@ const query = reactive({
   name: route.query.name || null,          // 获取传递的name参数
   testCaseId: route.query.testCaseId || null,  // 获取传递的testCaseId参数
   execType: null as number | null,
+  status: null as number | null,
   page: 1,
   size: 10
 });
@@ -515,6 +522,7 @@ const syncQueryFromRoute = () => {
   query.name = route.query.name || null;
   query.testCaseId = route.query.testCaseId || null;
   query.execType = null;
+  query.status = null;
   query.page = 1;
 };
 
@@ -560,6 +568,7 @@ const handleReset = () => {
   query.name = null;
   query.testCaseId = null;
   query.execType = null;
+  query.status = null;
   getList();
 };
 
