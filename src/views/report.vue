@@ -147,8 +147,8 @@
     </el-dialog>
 
     <!-- 报告详情：压测曲线 + 平台内资源曲线 -->
-    <el-drawer v-model="detailVisible" :title="detailTitle" size="82%" destroy-on-close>
-      <div class="report-detail" v-loading="detailLoading">
+    <el-drawer v-model="detailVisible" :title="detailTitle" size="82%">
+      <div class="report-detail">
         <div class="detail-meta">
           <span>区域：{{ detailReport?.region || '全部' }}</span>
           <span>服务：{{ detailReport?.serviceName || '-' }}</span>
@@ -158,6 +158,7 @@
         </div>
         <el-tabs v-model="detailTab">
           <el-tab-pane label="概览" name="overview">
+            <div v-loading="overviewLoading">
             <div class="summary-grid">
               <div class="summary-card">
                 <div class="summary-label">平均 QPS</div>
@@ -219,6 +220,7 @@
                 </el-table-column>
                 <template #empty><el-empty description="任务完成后生成交易统计" /></template>
               </el-table>
+            </div>
             </div>
           </el-tab-pane>
           <el-tab-pane :label="`错误详情(${errorSamplesTotal})`" name="errors">
@@ -326,12 +328,14 @@
             <JmeterMetricsChart v-else :data="pressureMetrics" />
           </el-tab-pane>
           <el-tab-pane label="交易曲线" name="transaction">
+            <div v-loading="transactionTrendLoading">
             <div class="transaction-chart-toolbar">
               <span>性能趋势图</span>
               <span>窗口：{{ transactionTrend.window }}s</span>
             </div>
             <el-empty v-if="!hasTransactionTrend" description="任务完成后生成交易曲线" />
             <TransactionTrendCharts v-else :data="transactionTrend" />
+            </div>
           </el-tab-pane>
           <el-tab-pane label="资源曲线" name="resource">
             <div v-loading="resourceLoading">
@@ -589,6 +593,7 @@ const handleDelete = async (id: number) => {
     ElMessage.error(res.data.message);
   } else {
     ElMessage.success("删除成功");
+    clearReportDetailCache(id);
     await getList(); // 等待getList()执行完再继续
   }
 };
@@ -662,7 +667,7 @@ const handleDownloadArtifact = async (name: string) => {
 
 // 报告详情：平台内压测曲线 + Prometheus 资源曲线
 const detailVisible = ref(false);
-const detailLoading = ref(false);
+const overviewLoading = ref(false);
 const detailTab = ref('overview');
 const detailReport = ref<ReportItem | null>(null);
 const pressureMetrics = ref<MetricsItem[]>([]);
@@ -679,6 +684,7 @@ const transactionTrend = ref<TransactionTrendData>({
 });
 const resourceError = ref('');
 const resourceLoading = ref(false);
+const transactionTrendLoading = ref(false);
 const resourceTargets = ref<ResourceTarget[]>([]);
 const selectedResourceInstance = ref('');
 const errorSamplesLoading = ref(false);
@@ -697,6 +703,33 @@ const resourceMetrics = ref<ResourceMetricsData>({
   series: {}
 });
 const resourceMetricsCache = new Map<string, { expiresAt: number; data: ResourceMetricsData }>();
+
+interface OverviewCacheData {
+  pressureMetrics: MetricsItem[];
+  resourceTargets: ResourceTarget[];
+  transactionStats: TransactionStatsItem[];
+}
+
+interface ErrorSamplesCacheData {
+  list: ErrorSampleItem[];
+  total: number;
+  groups: Record<string, number>;
+}
+
+const overviewCache = new Map<number, OverviewCacheData>();
+const transactionTrendCache = new Map<number, TransactionTrendData>();
+const errorSamplesCache = new Map<number, ErrorSamplesCacheData>();
+
+const isFinishedReport = (report: ReportItem) => report.status === 2 || report.status === 3;
+
+const clearReportDetailCache = (reportId: number) => {
+  overviewCache.delete(reportId);
+  transactionTrendCache.delete(reportId);
+  errorSamplesCache.delete(reportId);
+  for (const key of resourceMetricsCache.keys()) {
+    if (key.startsWith(`${reportId}|`)) resourceMetricsCache.delete(key);
+  }
+};
 
 const detailTitle = computed(() => {
   if (!detailReport.value) return '报告详情';
@@ -794,25 +827,65 @@ const resetErrorSamples = () => {
   selectedErrorSample.value = null;
 };
 
+const applyErrorSamples = (data: ErrorSamplesCacheData) => {
+  errorSamples.value = data.list;
+  errorSamplesTotal.value = data.total;
+  errorSampleGroups.value = data.groups;
+  selectedErrorSample.value = data.list[0] || null;
+};
+
 const loadErrorSamples = async (reportId: number) => {
+  const cached = errorSamplesCache.get(reportId);
+  if (cached) {
+    applyErrorSamples(cached);
+    return;
+  }
+  if (errorSamplesLoading.value) return;
   errorSamplesLoading.value = true;
   try {
     const res = await getErrorSamples(reportId, 100);
+    if (detailReport.value?.id !== reportId) return;
     if (res.data.code !== 0) {
       ElMessage.error(res.data.message || '错误详情读取失败');
       resetErrorSamples();
       return;
     }
     const data = res.data.data || {};
-    errorSamples.value = data.list || [];
-    errorSamplesTotal.value = data.total || errorSamples.value.length;
-    errorSampleGroups.value = data.groups || {};
-    selectedErrorSample.value = errorSamples.value[0] || null;
+    const value: ErrorSamplesCacheData = {
+      list: data.list || [],
+      total: data.total || (data.list || []).length,
+      groups: data.groups || {},
+    };
+    applyErrorSamples(value);
+    if (detailReport.value && isFinishedReport(detailReport.value) && value.total > 0) {
+      errorSamplesCache.set(reportId, value);
+    }
   } catch (e) {
     resetErrorSamples();
     ElMessage.error('错误详情读取失败');
   } finally {
     errorSamplesLoading.value = false;
+  }
+};
+
+const loadTransactionTrend = async (reportId: number) => {
+  const cached = transactionTrendCache.get(reportId);
+  if (cached) {
+    transactionTrend.value = cached;
+    return;
+  }
+  if (transactionTrendLoading.value) return;
+  transactionTrendLoading.value = true;
+  try {
+    const res = await getTransactionTrend(reportId, 60);
+    if (detailReport.value?.id !== reportId || res.data.code !== 0) return;
+    const value = res.data.data || transactionTrend.value;
+    transactionTrend.value = value;
+    if (detailReport.value && isFinishedReport(detailReport.value) && (value.transactions || []).length) {
+      transactionTrendCache.set(reportId, value);
+    }
+  } finally {
+    transactionTrendLoading.value = false;
   }
 };
 
@@ -868,7 +941,7 @@ const openReportDetail = async (row: ReportItem) => {
   detailReport.value = row;
   detailVisible.value = true;
   detailTab.value = 'overview';
-  detailLoading.value = true;
+  overviewLoading.value = true;
   resourceError.value = '';
   pressureMetrics.value = [];
   transactionStats.value = [];
@@ -877,14 +950,23 @@ const openReportDetail = async (row: ReportItem) => {
   resourceTargets.value = [];
   selectedResourceInstance.value = '';
   resetResourceMetrics(row.id);
+  const cached = overviewCache.get(row.id);
+  if (cached) {
+    pressureMetrics.value = cached.pressureMetrics;
+    resourceTargets.value = cached.resourceTargets;
+    transactionStats.value = cached.transactionStats;
+    overviewLoading.value = false;
+    const firstTarget = resourceTargets.value.find((target) => !!target.instance);
+    selectedResourceInstance.value = firstTarget?.instance || '';
+    return;
+  }
   try {
-    const [pressureRes, targetRes, transactionRes, transactionTrendRes] = await Promise.allSettled([
+    const [pressureRes, targetRes, transactionRes] = await Promise.allSettled([
       getMetrics(row.id, 5),
       getResourceTargets(row.id),
       getTransactionStats(row.id),
-      getTransactionTrend(row.id, 60),
-      loadErrorSamples(row.id)
     ]);
+    if (detailReport.value?.id !== row.id) return;
     if (pressureRes.status === 'fulfilled' && pressureRes.value.data.code === 0) {
       pressureMetrics.value = pressureRes.value.data.data || [];
     }
@@ -894,16 +976,31 @@ const openReportDetail = async (row: ReportItem) => {
     if (transactionRes.status === 'fulfilled' && transactionRes.value.data.code === 0) {
       transactionStats.value = transactionRes.value.data.data || [];
     }
-    if (transactionTrendRes.status === 'fulfilled' && transactionTrendRes.value.data.code === 0) {
-      transactionTrend.value = transactionTrendRes.value.data.data || transactionTrend.value;
+    if (isFinishedReport(row) && pressureMetrics.value.length && transactionStats.value.length) {
+      overviewCache.set(row.id, {
+        pressureMetrics: pressureMetrics.value,
+        resourceTargets: resourceTargets.value,
+        transactionStats: transactionStats.value,
+      });
     }
   } finally {
-    detailLoading.value = false;
+    overviewLoading.value = false;
   }
   const firstTarget = resourceTargets.value.find((target) => !!target.instance);
   selectedResourceInstance.value = firstTarget?.instance || '';
-  await loadResourceMetrics(row.id, selectedResourceInstance.value || undefined);
 };
+
+watch(detailTab, (tab) => {
+  const reportId = detailReport.value?.id;
+  if (!reportId) return;
+  if (tab === 'errors') {
+    loadErrorSamples(reportId);
+  } else if (tab === 'transaction') {
+    loadTransactionTrend(reportId);
+  } else if (tab === 'resource' && !hasResourceSeries.value && !resourceLoading.value) {
+    loadResourceMetrics(reportId, selectedResourceInstance.value || undefined);
+  }
+});
 
 // 查看日志
 const jmxLog = ref('');

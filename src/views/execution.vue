@@ -182,8 +182,11 @@
     </el-dialog>
 
     <!-- Chart Dialog -->
-    <el-dialog title="实时监控" v-model="chartDialogVisible" width="900px" destroy-on-close>
-      <JmeterMetricsChart :data="metricsData" />
+    <el-dialog title="实时监控" v-model="chartDialogVisible" width="900px">
+      <div class="metrics-chart-container" v-loading="chartLoading">
+        <JmeterMetricsChart v-if="metricsData.length" :data="metricsData" />
+        <el-empty v-else description="等待实时数据..." />
+      </div>
     </el-dialog>
 
     <el-drawer v-model="logDrawerVisible" :title="logDrawerTitle" size="70%" destroy-on-close>
@@ -688,8 +691,10 @@ const onScheduleRegionChange = async () => {
 };
 
 const chartDialogVisible = ref(false);
+const chartLoading = ref(false);
 const currentReportId = ref(0);
 let chartTimer: ReturnType<typeof setInterval> | null = null;
+let chartRequesting = false;
 
 interface MetricsItem {
   timestamp: string;
@@ -703,18 +708,29 @@ interface MetricsItem {
 const metricsData = ref<MetricsItem[]>([]);
 
 const fetchChartData = async () => {
-  if (!currentReportId.value) return;
-  const res = await getMetrics(currentReportId.value, 5);
-  if (res.data.code !== 0) return;
-  const items = res.data.data || [];
-  if (items.length === 0 && metricsData.value.length > 0) return;
-  if (items.length < metricsData.value.length) return;
-  metricsData.value = items;
+  if (!currentReportId.value || chartRequesting) return;
+  chartRequesting = true;
+  try {
+    const res = await getMetrics(currentReportId.value, 5);
+    if (res.data.code !== 0) return;
+    const items = res.data.data || [];
+    if (items.length === 0 && metricsData.value.length > 0) return;
+    if (items.length < metricsData.value.length) return;
+    metricsData.value = items;
+  } finally {
+    chartRequesting = false;
+    chartLoading.value = false;
+  }
 };
 
 const openChartDialog = async (reportId: number) => {
+  if (chartTimer) {
+    clearInterval(chartTimer);
+    chartTimer = null;
+  }
   currentReportId.value = reportId;
   metricsData.value = [];
+  chartLoading.value = true;
   chartDialogVisible.value = true;
   await fetchChartData();
   chartTimer = setInterval(fetchChartData, 5000);
@@ -729,6 +745,14 @@ watch(chartDialogVisible, (visible) => {
 </script>
 
 <style scoped>
+.metrics-chart-container {
+  min-height: 420px;
+}
+
+.metrics-chart-container :deep(.el-empty) {
+  height: 420px;
+}
+
 .auto-refresh {
   display: inline-flex;
   align-items: center;
