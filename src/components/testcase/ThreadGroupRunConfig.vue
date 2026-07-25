@@ -23,22 +23,27 @@
           <el-select v-model="item.mode" size="small" :disabled="!item.enabled" class="thread-group-mode">
             <el-option label="跟随全局" value="global"></el-option>
             <el-option label="自定义" value="custom"></el-option>
-            <el-option label="固定原值" value="fixed"></el-option>
+            <el-option label="使用原脚本" value="fixed"></el-option>
           </el-select>
         </label>
         <div class="thread-group-inputs">
           <label>
             <span>并发</span>
-            <el-input v-model="item.numThreads" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
+            <el-input v-if="item.mode === 'custom'" v-model="item.numThreads" size="small" :disabled="!item.enabled"></el-input>
+            <el-input v-else :model-value="item.mode === 'fixed' ? item.originalNumThreads : item.globalNumThreads" size="small" disabled></el-input>
           </label>
           <label>
             <span>启动</span>
-            <el-input v-model="item.rampTime" size="small" :disabled="!item.enabled || item.mode !== 'custom'"></el-input>
+            <el-input v-if="item.mode === 'custom'" v-model="item.rampTime" size="small" :disabled="!item.enabled"></el-input>
+            <el-input v-else :model-value="item.mode === 'fixed' ? item.originalRampTime : item.rampTime" size="small" disabled></el-input>
           </label>
           <label>
             <span>Pacing(ms)</span>
-            <el-input v-model="item.pacingMs" size="small" :disabled="!item.enabled" placeholder="0"></el-input>
+            <el-input v-model="item.pacingMs" size="small" :disabled="!item.enabled || item.mode === 'fixed'" placeholder="0"></el-input>
           </label>
+          <div v-if="item.mode === 'fixed'" class="original-settings" :title="originalSettingsText(item)">
+            {{ originalSettingsText(item) }}
+          </div>
         </div>
       </div>
     </div>
@@ -59,6 +64,17 @@ const typeText = (type?: string) => {
     concurrency_thread_group: 'Concurrency'
   };
   return map[type] || type || 'Thread Group';
+};
+
+const originalSettingsText = (item: ThreadGroupRunConfigItem) => {
+  const values = [
+    `并发 ${item.originalNumThreads || '-'}`,
+    `启动 ${item.originalRampTime || '-'}`
+  ];
+  if (item.originalLoops) values.push(`循环 ${item.originalLoops}`);
+  if (item.originalScheduler !== null) values.push(`调度 ${item.originalScheduler ? '开启' : '关闭'}`);
+  if (item.originalDuration) values.push(`时长 ${item.originalDuration}`);
+  return `原脚本：${values.join(' · ')}`;
 };
 </script>
 
@@ -165,6 +181,16 @@ const typeText = (type?: string) => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
+}
+
+.original-settings {
+  color: #606266;
+  font-size: 12px;
+  grid-column: 1 / -1;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {

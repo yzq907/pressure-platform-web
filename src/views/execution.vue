@@ -151,13 +151,13 @@
         <el-divider content-position="left">压测参数</el-divider>
         <div class="schedule-param-grid">
           <el-form-item label="并发数">
-            <el-input v-model="scheduleForm.runParam.numThreads" placeholder="并发线程数，如 100" />
+            <el-input v-model="scheduleForm.runParam.numThreads" :disabled="scheduleGlobalSettingsDisabled" placeholder="并发线程数，如 100" />
           </el-form-item>
           <el-form-item label="启动时间">
-            <el-input v-model="scheduleForm.runParam.rampTime" placeholder="Ramp-Up 秒数，如 10" />
+            <el-input v-model="scheduleForm.runParam.rampTime" :disabled="scheduleGlobalSettingsDisabled" placeholder="Ramp-Up 秒数，如 10" />
           </el-form-item>
           <el-form-item label="运行时间">
-            <el-input v-model="scheduleForm.runParam.duration" placeholder="持续时间 秒数，如 300" />
+            <el-input v-model="scheduleForm.runParam.duration" :disabled="scheduleGlobalSettingsDisabled" placeholder="持续时间 秒数，如 300" />
           </el-form-item>
           <el-form-item label="目标区域">
             <el-select v-model="scheduleForm.runParam.region" placeholder="全部区域" @change="onScheduleRegionChange" style="width:100%">
@@ -236,7 +236,7 @@
 </template>
 
 <script setup lang="ts" name="execution">
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
+import { computed, ref, reactive, onMounted, onUnmounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, Refresh, Close, TrendCharts, VideoPlay, Edit, Delete, Tickets } from '@element-plus/icons-vue';
 import { getReportListAll, getMetrics } from '../api/report';
@@ -250,6 +250,7 @@ import {
   buildThreadGroupOverridePayload,
   createThreadGroupOverrideRows,
   findInvalidThreadGroupPacing,
+  allEnabledThreadGroupsUseOriginal,
   type ScheduleData,
   type ScheduleTaskForm,
   type ThreadGroupRunConfigItem
@@ -529,6 +530,10 @@ const scheduleForm = reactive<ScheduleTaskForm>({
     threadGroupOverrides: []
   }
 });
+
+const scheduleGlobalSettingsDisabled = computed(() =>
+  allEnabledThreadGroupsUseOriginal(scheduleForm.runParam.threadGroupOverrides)
+);
 
 interface SavedScheduleRunParam {
   taskName?: string;

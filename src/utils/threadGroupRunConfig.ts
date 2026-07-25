@@ -3,6 +3,11 @@ export interface ThreadGroupSource {
   name?: string;
   type?: string;
   enabled?: boolean;
+  numThreads?: string;
+  rampTime?: string;
+  loops?: string;
+  scheduler?: boolean | null;
+  duration?: string;
 }
 
 export type ThreadGroupRunMode = 'global' | 'custom' | 'fixed';
@@ -17,6 +22,11 @@ export interface ThreadGroupRunConfigItem extends ThreadGroupSource {
   rampTime: string;
   globalNumThreads: string;
   pacingMs: string;
+  originalNumThreads: string;
+  originalRampTime: string;
+  originalLoops: string;
+  originalScheduler: boolean | null;
+  originalDuration: string;
 }
 
 export interface ThreadGroupOverridePayload {
@@ -103,7 +113,12 @@ export const createThreadGroupOverrideRows = (
       numThreads: saved.numThreads || numThreads,
       rampTime: saved.rampTime || rampTime,
       globalNumThreads: numThreads,
-      pacingMs: String(saved.pacingMs ?? 0)
+      pacingMs: String(saved.pacingMs ?? 0),
+      originalNumThreads: item.numThreads || saved.originalNumThreads || '',
+      originalRampTime: item.rampTime || saved.originalRampTime || '',
+      originalLoops: item.loops || saved.originalLoops || '',
+      originalScheduler: item.scheduler ?? saved.originalScheduler ?? null,
+      originalDuration: item.duration || saved.originalDuration || ''
     };
   });
 
@@ -123,7 +138,12 @@ export const createThreadGroupOverrideRows = (
       numThreads: item.numThreads || numThreads,
       rampTime: item.rampTime || rampTime,
       globalNumThreads: numThreads,
-      pacingMs: String(item.pacingMs ?? 0)
+      pacingMs: String(item.pacingMs ?? 0),
+      originalNumThreads: item.originalNumThreads || '',
+      originalRampTime: item.originalRampTime || '',
+      originalLoops: item.originalLoops || '',
+      originalScheduler: item.originalScheduler ?? null,
+      originalDuration: item.originalDuration || ''
     };
   });
 };
@@ -133,8 +153,15 @@ export const findInvalidThreadGroupPacing = (
 ): ThreadGroupRunConfigItem | undefined => {
   return (items || []).find((item) => {
     const pacing = Number(item.pacingMs);
-    return item.enabled && (!Number.isFinite(pacing) || pacing < 0);
+    return item.enabled && item.mode !== 'fixed' && (!Number.isFinite(pacing) || pacing < 0);
   });
+};
+
+export const allEnabledThreadGroupsUseOriginal = (
+  items: ThreadGroupRunConfigItem[]
+): boolean => {
+  const enabledItems = (items || []).filter((item) => item.enabled);
+  return enabledItems.length > 0 && enabledItems.every((item) => item.mode === 'fixed');
 };
 
 export const buildThreadGroupOverridePayload = (
@@ -149,6 +176,6 @@ export const buildThreadGroupOverridePayload = (
       mode: item.mode,
       numThreads: item.numThreads,
       rampTime: item.rampTime,
-      pacingMs: Number(item.pacingMs || 0)
+      pacingMs: item.mode === 'fixed' ? 0 : Number(item.pacingMs || 0)
     }));
 };

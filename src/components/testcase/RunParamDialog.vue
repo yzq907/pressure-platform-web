@@ -15,13 +15,13 @@
           <el-input v-model="form.taskName" maxlength="255" show-word-limit placeholder="例如：登录接口-100并发-基线"></el-input>
         </el-form-item>
         <el-form-item label="并发数">
-          <el-input v-model="form.numThreads" placeholder="如 100"></el-input>
+          <el-input v-model="form.numThreads" :disabled="globalSettingsDisabled" placeholder="如 100"></el-input>
         </el-form-item>
         <el-form-item label="启动时间">
-          <el-input v-model="form.rampTime" placeholder="Ramp-Up 秒数"></el-input>
+          <el-input v-model="form.rampTime" :disabled="globalSettingsDisabled" placeholder="Ramp-Up 秒数"></el-input>
         </el-form-item>
         <el-form-item label="运行时间">
-          <el-input v-model="form.duration" placeholder="持续时间 秒"></el-input>
+          <el-input v-model="form.duration" :disabled="globalSettingsDisabled" placeholder="持续时间 秒"></el-input>
         </el-form-item>
         <el-form-item label="目标区域">
           <el-select v-model="form.region" placeholder="全部区域" @change="emit('region-change')" style="width:100%">
@@ -58,16 +58,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import ThreadGroupRunConfig from './ThreadGroupRunConfig.vue';
-import type { RunParamForm } from '../../utils/threadGroupRunConfig';
+import { allEnabledThreadGroupsUseOriginal, type RunParamForm } from '../../utils/threadGroupRunConfig';
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
   form: RunParamForm;
   regionList: string[];
   maxSlaveCount: number;
   submitting?: boolean;
 }>();
+
+const globalSettingsDisabled = computed(() => allEnabledThreadGroupsUseOriginal(props.form.threadGroupOverrides));
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
