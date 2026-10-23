@@ -7,3 +7,11 @@ export const getAuditLogList = (param: any) => {
         params: param
     });
 }
+
+export const cleanAuditLogs = (ids: number[]) => {
+    return request({
+        url: '/audit/cleanBatch',
+        method: 'post',
+        data: { ids }
+    });
+}

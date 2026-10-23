@@ -152,6 +152,15 @@ export const cleanReport = (id: number) => {
     });
 }
 
+export const cleanReports = (ids: number[]) => {
+    return request({
+        url: '/report/cleanBatch',
+        method: 'post',
+        data: { ids },
+        timeout: 120000
+    });
+}
+
 export const viewReport = (id: number) => {
     return request({
         url: '/report/view/' + id,

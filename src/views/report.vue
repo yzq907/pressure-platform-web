@@ -16,11 +16,13 @@
         </el-select>
 
 
-        <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-        <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+        <el-button type="primary" :icon="Search" :disabled="deleting" @click="handleSearch">搜索</el-button>
+        <el-button :icon="Refresh" :disabled="deleting" @click="handleReset">重置</el-button>
+        <el-button v-if="selectedReports.length > 0" type="danger" :icon="Delete" :loading="deleting" @click="handleBatchDelete" v-permiss="'report'">删除</el-button>
       </div>
 
-      <el-table :data="reportData" stripe class="table" ref="multipleTable" v-loading="loading">
+      <el-table :data="reportData" stripe class="table" ref="multipleTable" v-loading="loading || deleting" row-key="id" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="48" align="center" :selectable="isReportSelectable" />
         <el-table-column prop="id" label="编号" width="55" align="center"></el-table-column>
         <el-table-column prop="name" label="任务名称" align="center"></el-table-column>
         <el-table-column prop="description" label="描述" align="center"></el-table-column>
@@ -57,7 +59,7 @@
               <el-button v-if="scope.row.execType !== 1" text :icon="Box" type="primary" @click="openArtifacts(scope.row.id)" v-permiss="'report'">产物</el-button>
               <el-button text :icon="TrendCharts" type="primary" @click="openCompareSelect(scope.row)" v-permiss="'report'">对比</el-button>
               <el-button text :icon="Search" type="primary" @click="drawer = true,handleJMeterLog(scope.row.id)" v-permiss="'report'">日志</el-button>
-              <el-button text :icon="Delete" type="danger" @click="handleDelete(scope.row.id)" v-permiss="'report'">删除</el-button>
+              <el-button text :icon="Delete" type="danger" :disabled="deleting || !isReportDeletable(scope.row)" @click="handleDelete(scope.row.id)" v-permiss="'report'">删除</el-button>
             </div>
           </template>
         </el-table-column>
@@ -71,6 +73,7 @@
             :current-page="query.page"
             :page-size="query.size"
             :total="total"
+            :disabled="deleting"
             @current-change="handlePageChange"
         ></el-pagination>
       </div>
@@ -223,7 +226,7 @@
             </div>
             </div>
           </el-tab-pane>
-          <el-tab-pane :label="`错误详情(${errorSamplesTotal})`" name="errors">
+          <el-tab-pane :label="`错误详情(${errorSamplesLoading ? '加载中' : errorSamplesTotal ?? '-'})`" name="errors">
             <div class="error-samples" v-loading="errorSamplesLoading">
               <div class="error-toolbar">
                 <span>失败请求采样</span>
@@ -239,7 +242,8 @@
                   </el-tag>
                 </div>
               </div>
-              <el-empty v-if="!errorSamplesLoading && errorSamples.length === 0" description="本次压测未采集到失败请求" />
+              <el-empty v-if="!errorSamplesLoading && errorSamplesTotal === null" description="错误详情未加载成功，请切换标签重试" />
+              <el-empty v-else-if="!errorSamplesLoading && errorSamples.length === 0" description="本次压测未采集到失败请求" />
               <div v-else class="error-layout">
                 <el-table
                   :data="errorSamples"
@@ -391,7 +395,7 @@ import {ref, reactive, computed, onActivated, watch} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import VirtualTextViewer from '../components/VirtualTextViewer.vue';
 import { Download, Search, Delete, Edit, Refresh, Top, TrendCharts, Box, DataAnalysis } from '@element-plus/icons-vue';
-import {cleanReport, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact, getMetrics, getResourceMetrics, getResourceTargets, getTransactionStats, getTransactionTrend, getErrorSamples} from "../api/report";
+import {cleanReport, cleanReports, downloadReport, getLog, getReportList, viewReport, compareReports, getReportListByTestCase, getGrafanaUrl, getArtifacts, downloadArtifact, getMetrics, getResourceMetrics, getResourceTargets, getTransactionStats, getTransactionTrend, getErrorSamples} from "../api/report";
 import JmeterCompareChart from '../components/JmeterCompareChart.vue';
 import JmeterMetricsChart from '../components/JmeterMetricsChart.vue';
 import ResourceMetricsChart from '../components/ResourceMetricsChart.vue';
@@ -521,6 +525,21 @@ const query = reactive({
 const loading = ref(false);
 const reportData = ref<ReportItem[]>([]);
 const total = ref(0);
+const multipleTable = ref<{ clearSelection: () => void } | null>(null);
+const selectedReports = ref<ReportItem[]>([]);
+const deleting = ref(false);
+let reportListRequestId = 0;
+
+const isReportDeletable = (row: ReportItem) => [0, 2, 3].includes(row.status);
+const isReportSelectable = (row: ReportItem) => !deleting.value && isReportDeletable(row);
+const handleSelectionChange = (rows: ReportItem[]) => {
+  const visibleIds = new Set(reportData.value.map((row) => row.id));
+  selectedReports.value = rows.filter((row) => visibleIds.has(row.id) && isReportDeletable(row));
+};
+const clearReportSelection = () => {
+  selectedReports.value = [];
+  multipleTable.value?.clearSelection();
+};
 
 const syncQueryFromRoute = () => {
   query.name = route.query.name || null;
@@ -530,9 +549,13 @@ const syncQueryFromRoute = () => {
   query.page = 1;
 };
 
-const getList = () => {
+const getList = async (): Promise<boolean> => {
+  const requestId = ++reportListRequestId;
+  clearReportSelection();
   loading.value = true;
-  getReportList(query).then(res => {
+  try {
+    const res = await getReportList({ ...query });
+    if (requestId !== reportListRequestId) return false;
     checkToLogin(res.data.message);
     const code = res.data.code
     if (code != 0) {
@@ -540,8 +563,20 @@ const getList = () => {
       return false;
     }
     reportData.value = res.data.data.list;
-    total.value = res.data.data.total || 10;
-  }).finally(() => { loading.value = false; });
+    total.value = res.data.data.total || 0;
+    const lastPage = Math.max(1, Math.ceil(total.value / query.size));
+    if (query.page > lastPage) {
+      query.page = lastPage;
+      return await getList();
+    }
+    return true;
+  } catch (e) {
+    if (requestId !== reportListRequestId) return false;
+    ElMessage.error('报告列表读取失败，请重试');
+    return false;
+  } finally {
+    if (requestId === reportListRequestId) loading.value = false;
+  }
 };
 getList();
 
@@ -569,6 +604,7 @@ const handleSearch = () => {
 };
 
 const handleReset = () => {
+  query.page = 1;
   query.name = null;
   query.testCaseId = null;
   query.execType = null;
@@ -583,18 +619,76 @@ const handlePageChange = (val: number) => {
 };
 
 // 删除操作
+const handleBatchDelete = async () => {
+  if (deleting.value || selectedReports.value.length === 0) return;
+  const ids = selectedReports.value.map((row) => row.id);
+  deleting.value = true;
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确定删除选中的 ${ids.length} 份报告吗？报告记录及相关产物文件将被清理，此操作不可恢复。`,
+        '删除报告', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+      );
+    } catch (e) {
+      return;
+    }
+    const res = await cleanReports(ids);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message || '删除失败');
+      return;
+    }
+    const data = res.data.data;
+    const deletedIds: number[] = data.deletedIds || [];
+    const failures: Array<{ id: number; message: string }> = data.failures || [];
+    for (const id of deletedIds) clearReportDetailCache(id);
+    if (detailReport.value && deletedIds.includes(detailReport.value.id)) {
+      detailVisible.value = false;
+      detailReport.value = null;
+      errorSamplesRequestId++;
+      errorSamplesLoading.value = false;
+      resetErrorSamples();
+    }
+    if (deletedIds.includes(artifactReportId.value)) artifactVisible.value = false;
+    const summary = `删除完成：成功 ${deletedIds.length} 份，失败 ${failures.length} 份`;
+    if (failures.length) {
+      ElMessage({
+        type: 'warning', showClose: true, duration: 10000,
+        message: `${summary}；${failures.map((item) => `#${item.id}：${item.message}`).join('；')}`,
+      });
+    } else {
+      ElMessage.success(summary);
+    }
+    await getList();
+  } catch (e) {
+    ElMessage.error('删除请求失败，部分报告可能已删除，请刷新列表核实后重试');
+  } finally {
+    deleting.value = false;
+  }
+};
+
 const handleDelete = async (id: number) => {
-  await ElMessageBox.confirm('确定要删除吗？', '提示', {
-    type: 'warning'
-  });
-  const res = await cleanReport(id);
-  const code = res.data.code
-  if (code != 0) {
-    ElMessage.error(res.data.message);
-  } else {
-    ElMessage.success("删除成功");
-    clearReportDetailCache(id);
-    await getList(); // 等待getList()执行完再继续
+  if (deleting.value) return;
+  deleting.value = true;
+  try {
+    try {
+      await ElMessageBox.confirm('确定删除这份报告及相关产物文件吗？此操作不可恢复。', '删除报告', {
+        type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消',
+      });
+    } catch (e) {
+      return;
+    }
+    const res = await cleanReport(id);
+    if (res.data.code !== 0) {
+      ElMessage.error(res.data.message);
+    } else {
+      ElMessage.success('删除成功');
+      clearReportDetailCache(id);
+      await getList();
+    }
+  } catch (e) {
+    ElMessage.error('删除请求失败，请刷新列表核实后重试');
+  } finally {
+    deleting.value = false;
   }
 };
 
@@ -689,7 +783,8 @@ const resourceTargets = ref<ResourceTarget[]>([]);
 const selectedResourceInstance = ref('');
 const errorSamplesLoading = ref(false);
 const errorSamples = ref<ErrorSampleItem[]>([]);
-const errorSamplesTotal = ref(0);
+const errorSamplesTotal = ref<number | null>(null);
+let errorSamplesRequestId = 0;
 const errorSampleGroups = ref<Record<string, number>>({});
 const selectedErrorSample = ref<ErrorSampleItem | null>(null);
 const RESOURCE_METRICS_CACHE_TTL_MS = 60000;
@@ -822,7 +917,7 @@ const resetTransactionTrend = (reportId = 0) => {
 
 const resetErrorSamples = () => {
   errorSamples.value = [];
-  errorSamplesTotal.value = 0;
+  errorSamplesTotal.value = null;
   errorSampleGroups.value = {};
   selectedErrorSample.value = null;
 };
@@ -841,10 +936,11 @@ const loadErrorSamples = async (reportId: number) => {
     return;
   }
   if (errorSamplesLoading.value) return;
+  const requestId = ++errorSamplesRequestId;
   errorSamplesLoading.value = true;
   try {
     const res = await getErrorSamples(reportId, 100);
-    if (detailReport.value?.id !== reportId) return;
+    if (requestId !== errorSamplesRequestId || detailReport.value?.id !== reportId) return;
     if (res.data.code !== 0) {
       ElMessage.error(res.data.message || '错误详情读取失败');
       resetErrorSamples();
@@ -853,7 +949,7 @@ const loadErrorSamples = async (reportId: number) => {
     const data = res.data.data || {};
     const value: ErrorSamplesCacheData = {
       list: data.list || [],
-      total: data.total || (data.list || []).length,
+      total: data.total ?? (data.list || []).length,
       groups: data.groups || {},
     };
     applyErrorSamples(value);
@@ -861,10 +957,11 @@ const loadErrorSamples = async (reportId: number) => {
       errorSamplesCache.set(reportId, value);
     }
   } catch (e) {
+    if (requestId !== errorSamplesRequestId || detailReport.value?.id !== reportId) return;
     resetErrorSamples();
     ElMessage.error('错误详情读取失败');
   } finally {
-    errorSamplesLoading.value = false;
+    if (requestId === errorSamplesRequestId) errorSamplesLoading.value = false;
   }
 };
 
@@ -946,7 +1043,12 @@ const openReportDetail = async (row: ReportItem) => {
   pressureMetrics.value = [];
   transactionStats.value = [];
   resetTransactionTrend(row.id);
+  // Invalidate the previous opening, including when reopening the same report.
+  errorSamplesRequestId++;
+  errorSamplesLoading.value = false;
   resetErrorSamples();
+  // Start independently of overview loading and its cache-hit early return.
+  void loadErrorSamples(row.id);
   resourceTargets.value = [];
   selectedResourceInstance.value = '';
   resetResourceMetrics(row.id);
